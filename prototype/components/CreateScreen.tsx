@@ -8,14 +8,14 @@ import { cleanInput, generationTimeoutMs } from '../lib/content';
 import { sampleInput } from '../lib/samples';
 import { useAuth } from './AuthProvider';
 
-export default function CreateScreen() {
+export default function CreateScreen({ aiUnavailable = false }: { aiUnavailable?: boolean }) {
   const auth = useAuth();
   const { input, setInput, errors, setErrors, current, saveError, generateError, busy, onBlur, generate } = useWorkbench();
   const changed = current && JSON.stringify(cleanInput(input)) !== JSON.stringify(current.input);
   return <div className="wrap tool-page">
     <nav className="skip-links" aria-label="Bỏ qua tới nội dung"><a href="#form-title">Đến form</a><a href="#results-title">Đến kết quả</a></nav>
     <div className="page-intro"><div><p className="eyebrow">Không gian viết</p><h1>Bàn biên tập của bạn.</h1><p>Bốn thông tin để bắt đầu. Một bộ bản nháp để cân nhắc.</p></div><span className="workspace-badge">{auth.user ? 'Tài khoản' : 'Chế độ khách'} · Lưu trên trình duyệt</span></div>
-    <aside className="prototype-notice"><div><strong>Tạo bản nháp bằng AI · Kết nối local</strong><p className="small">Chỉ nhập dữ kiện có thể xác nhận. Đọc lại nội dung AI trước khi dùng.</p></div>
+    <aside className="prototype-notice"><div><strong>{aiUnavailable ? 'AI chưa sẵn sàng trên bản xem thử' : 'Tạo bản nháp bằng AI'}</strong><p className="small">{aiUnavailable ? 'Bản xem thử chưa có khóa AI mới. Bạn vẫn xem được giao diện và lịch sử đã có trên trình duyệt; không có nội dung mẫu thay AI.' : 'Chỉ nhập dữ kiện có thể xác nhận. Đọc lại nội dung AI trước khi dùng.'}</p></div>
       <button disabled={busy} onClick={() => { setInput({ ...sampleInput }); setErrors({}); document.getElementById('form-title')?.focus(); }}>Dùng thông tin mẫu</button></aside>
     <div className="tool-links"><Link href="/create" aria-current="page">Tạo nội dung</Link><Link href="/history">Lịch sử trên máy này →</Link></div>
     <p className="small muted draft-lifetime">Bản đang nhập được giữ giữa Tạo nội dung và Lịch sử. Đổi tài khoản, đăng xuất hoặc hết phiên sẽ bỏ bản đang nhập; hãy copy trước. Lịch sử chỉ lưu trên trình duyệt, không bảo mật hay đồng bộ thiết bị.</p>

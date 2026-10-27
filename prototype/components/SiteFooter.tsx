@@ -7,6 +7,6 @@ export default function SiteFooter() {
     <nav className="footer-links" aria-label="Chân trang">
       <Link href="/">Trang chủ</Link><Link href="/features">Tính năng</Link><Link href="/create">Tạo nội dung</Link>
       <Link href="/history">Lịch sử</Link><Link href="/about">Về chúng tôi</Link><Link href="/login">Đăng nhập</Link>
-    </nav></div><p>Bản nháp cho Feed Facebook/Instagram. Luôn kiểm tra nội dung trước khi đăng.<br />AI local · Lịch sử chỉ lưu trên trình duyệt này.</p>
+    </nav></div><p>Bản nháp cho Feed Facebook/Instagram. Luôn kiểm tra nội dung trước khi đăng.<br />Lịch sử chỉ lưu trên trình duyệt này.</p>
   </div></footer>;
 }

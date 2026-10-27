@@ -7,8 +7,8 @@ const errors = {
   RATE_LIMITED: [429, 'Dịch vụ đang giới hạn yêu cầu hoặc đang tạo một bộ khác. Hãy chờ rồi chủ động thử lại.'],
   INVALID_AI_OUTPUT: [502, 'AI trả nội dung sai cấu trúc hoặc vượt giới hạn xử lý. Bản nháp cũ được giữ; bạn có thể thử lại.'],
   UPSTREAM_ERROR: [502, 'Dịch vụ AI trả lỗi. Bản nháp cũ được giữ; hãy thử lại sau.'],
-  AI_NOT_CONFIGURED: [503, 'Kết nối AI local chưa được cấu hình đúng. Kiểm tra cấu hình phía máy chủ.'],
-  AI_UNAVAILABLE: [503, 'Chưa kết nối được dịch vụ AI local. Kiểm tra FreeLLMAPI đang chạy rồi thử lại.'],
+  AI_NOT_CONFIGURED: [503, 'Kết nối AI chưa được cấu hình đúng. Kiểm tra cấu hình phía máy chủ.'],
+  AI_UNAVAILABLE: [503, 'Chưa kết nối được dịch vụ AI. Kiểm tra kết nối phía máy chủ rồi thử lại.'],
   AI_TIMEOUT: [504, 'AI chưa phản hồi trong 90 giây. Form và bản nháp cũ được giữ; bạn có thể chủ động thử lại.'],
 } as const;
 type ErrorCode = keyof typeof errors;
@@ -56,14 +56,30 @@ Với humorous, tạo nét vui bằng chơi chữ hoặc đối lập nhẹ gắ
 Đúng 5 hashtag liên quan trực tiếp dữ kiện, khác nhau cả khi bỏ qua hoa/thường, bắt đầu #, không khoảng trắng hoặc # bên trong. Ưu tiên 2 về sản phẩm + 2 về ngữ cảnh + 1 tên sản phẩm/thương hiệu nếu có. Hashtag tiếng Việt phải đúng chính tả, đúng nghĩa, ghép từ dễ hiểu; có thể viết có dấu. Không ghép âm vô nghĩa, không thêm công dụng/đặc tính không được cung cấp.
 Tự đọc lại tiếng Việt và đối chiếu dữ kiện trước khi trả JSON. Không trả tự đánh giá. Mục tiêu độ dài là biên tập, không phải giới hạn Meta.`;
 
+const geminiFormat = { type: 'json_schema', json_schema: { name: 'content_set', strict: true, schema: {
+  type: 'object', additionalProperties: false, required: ['captions', 'headlines', 'hashtags'],
+  properties: Object.fromEntries(['captions', 'headlines', 'hashtags'].map((name, i) => [name, { type: 'array', items: { type: 'string' }, minItems: [3, 3, 5][i], maxItems: [3, 3, 5][i] }])),
+} } };
+
 export function createGenerateHandler({ env = process.env, fetchUpstream = fetch, timeoutMs = generationTimeoutMs, log = console.info }: Options = {}) {
   // shortcut: guard chỉ dùng cho một process local; cần cơ chế dùng chung trước khi triển khai nhiều instance.
   let inFlight = false;
   return async function generate(request: Request) {
     const url = new URL(request.url), origin = request.headers.get('origin');
+    const cloud = ['preview', 'production'].includes(env.VERCEL_ENV || '');
+    const configured = env.APP_ORIGIN ?? (cloud && env.VERCEL_URL ? `https://${env.VERCEL_URL}` : undefined);
+    let site: URL | undefined;
+    try {
+      if (configured) {
+        site = new URL(configured);
+        if (site.protocol !== 'https:' || configured !== site.origin) return failure('AI_NOT_CONFIGURED');
+      } else if (cloud) return failure('AI_NOT_CONFIGURED');
+    } catch { return failure('AI_NOT_CONFIGURED'); }
     // Next có thể dùng localhost nội bộ; chỉ tin Host sau khi đối chiếu loopback và cổng đang chạy.
     const host = request.headers.get('host') ?? url.host, port = url.port ? `:${url.port}` : '';
-    if (!['127.0.0.1', 'localhost'].includes(url.hostname) || ![`127.0.0.1${port}`, `localhost${port}`].includes(host) || (origin && origin !== `${url.protocol}//${host}`) ||
+    const allowed = site ? url.origin === site.origin && host === site.host && origin === site.origin :
+      ['127.0.0.1', 'localhost'].includes(url.hostname) && [`127.0.0.1${port}`, `localhost${port}`].includes(host) && (!origin || origin === `${url.protocol}//${host}`);
+    if (!allowed ||
       request.headers.get('sec-fetch-site') === 'cross-site' || request.headers.get('content-type')?.split(';')[0].trim().toLowerCase() !== 'application/json') return failure('INVALID_INPUT');
     let input: Input;
     try {
@@ -73,19 +89,23 @@ export function createGenerateHandler({ env = process.env, fetchUpstream = fetch
       input = cleanInput(data as Input);
       if (Object.keys(validate(input)).length) return failure('INVALID_INPUT');
     } catch { return failure('INVALID_INPUT'); }
-    const key = env.FREELLMAPI_API_KEY;
-    if (env.FREELLMAPI_BASE_URL !== 'http://127.0.0.1:31415/v1' || env.FREELLMAPI_MODEL !== 'auto' || !key || !/^[\x21-\x7e]+$/.test(key)) return failure('AI_NOT_CONFIGURED');
+    const provider = env.AI_PROVIDER ?? 'freellmapi', gemini = provider === 'gemini';
+    const key = gemini ? env.GEMINI_API_KEY : env.FREELLMAPI_API_KEY;
+    const model = gemini ? env.GEMINI_MODEL : env.FREELLMAPI_MODEL;
+    if (!['gemini', 'freellmapi'].includes(provider) || !key || !/^[\x21-\x7e]{1,512}$/.test(key) ||
+      (gemini ? model !== 'gemini-3.8-flash' : env.FREELLMAPI_BASE_URL !== 'http://127.0.0.1:31415/v1' || model !== 'auto')) return failure('AI_NOT_CONFIGURED');
     if (inFlight) return failure('RATE_LIMITED');
     inFlight = true;
     const controller = new AbortController(), started = Date.now();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
-    let status = 503, actualModel: string | undefined, usage: Record<string, number> | undefined;
+    let status = 503, upstreamStatus: number | undefined, actualModel: string | undefined, usage: Record<string, number> | undefined;
     try {
-      const upstream = await fetchUpstream('http://127.0.0.1:31415/v1/chat/completions', {
+      const upstream = await fetchUpstream(gemini ? 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions' : 'http://127.0.0.1:31415/v1/chat/completions', {
         method: 'POST', redirect: 'error', cache: 'no-store', signal: controller.signal,
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-        body: JSON.stringify({ model: 'auto', stream: false, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: JSON.stringify(input) }] }),
+        body: JSON.stringify({ model, stream: false, response_format: gemini ? geminiFormat : { type: 'json_object' }, ...(gemini ? { reasoning_effort: 'low' } : {}), messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: JSON.stringify(input) }] }),
       });
+      upstreamStatus = upstream.status;
       if (!upstream.ok) {
         void upstream.body?.cancel().catch(() => {});
         status = upstream.status === 429 ? 429 : 502;
@@ -112,7 +132,7 @@ export function createGenerateHandler({ env = process.env, fetchUpstream = fetch
       return failure(controller.signal.aborted ? 'AI_TIMEOUT' : 'AI_UNAVAILABLE');
     } finally {
       clearTimeout(timer); inFlight = false;
-      log({ event: 'generate', status, durationMs: Date.now() - started, requestedModel: 'auto', actualModel, usage });
+      log({ event: 'generate', status, upstreamStatus, durationMs: Date.now() - started, requestedModel: model, actualModel, usage });
     }
   };
 }

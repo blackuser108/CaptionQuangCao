@@ -1,11 +1,13 @@
 # CaptionQuangCao
 Agent tự động Viết Caption Quảng cáo
 
+**Bản xem online:** đang chuẩn bị Vercel Preview từ nhánh hiện có theo quyền mới của người dùng; xem [PREVIEW_PROGRESS](PREVIEW_PROGRESS.md) cho URL/kết quả sau kiểm. Preview chưa có khóa AI mới, hiển thị rõ AI chưa sẵn sàng; Google online chưa cấu hình, guest truy cập được. Không merge/main production hoặc inference mới.
+
 ## Trạng thái
 
 Ứng dụng **Bàn biên tập** trong `prototype/`: Next16.4.3, React19.3.1, TypeScript7, Node24, pnpm11.25.0. Giao diện V2, bốn trường đầu vào, ba caption/ba headline/năm hashtag; copy từng mục, tạo lại, lịch sử xem/xóa và bộ đếm Unicode. Google login Supabase SSR đã kiểm local với tài khoản chủ.
 
-**AI hiện chỉ gọi FreeLLMAPI local; chưa triển khai online.** Người dùng chọn giữ router và làm rõ điều kiện trước; chưa thuê VPS hoặc đổi provider. Chất lượng AI Bước4, Q1/Q3 BTC, tài khoản Google ngoài chủ và hết phiên thật còn mở. [ONLINE_READINESS](ONLINE_READINESS.md) ghi nguồn, giá/giới hạn, cấu hình và các cửa trước deploy.
+**AI tạm chuyển sang Gemini Developer API trực tiếp; chưa triển khai online.** Model server được khóa là `gemini-3.8-flash`, suy luận low; dùng REST tương thích OpenAI chính thức của Google, không cài SDK. FreeLLMAPI local được giữ để quay lại thủ công; hướng VPS tạm hoãn, không fallback hoặc giao diện chọn provider. Chất lượng AI Bước4, Q1/Q3 BTC, tài khoản Google ngoài chủ và hết phiên thật còn mở. [ONLINE_READINESS](ONLINE_READINESS.md) và [GEMINI_PROGRESS](GEMINI_PROGRESS.md) ghi kết quả kiểm, nguồn và các cửa trước deploy.
 
 Hai vercel.json chặn Git autodeploy (`git.deploymentEnabled=false`). Không tự merge/bật deploy vì build thành công. Giữ lịch sử commit gốc; nhánh chuẩn bị `chore/online-readiness`.
 
@@ -22,7 +24,13 @@ pnpm start
 
 Mở http://127.0.0.1:3000. `pnpm dev` để sửa code. Build/test không cần khóa và không gọi inference. Font local có OFL đi kèm. Không static-export vì có API và SSR.
 
-Tạo cấu hình riêng từ `.env.example` ở root; không commit giá trị. Giữ FREELLMAPI_BASE_URL=http://127.0.0.1:31415/v1, FREELLMAPI_MODEL=auto và AI key server trong `.env.local` ở root. Dev/start đọc file cha bằng Node. Đặt riêng SUPABASE_URL/SUPABASE_PUBLISHABLE_KEY/AUTH_SITE_URL/AUTH_GOOGLE_ENABLED trong `prototype/.env.local` để Next nạp ở thư mục chạy; dùng đúng project/key của mình. Thiếu cấu hình auth, guest vẫn dùng được; thiếu AI key/router trả lỗi rõ, không dữ liệu mẫu thay AI. AUTH_SITE_URL local phải khớp127.0.0.1 để giữ origin lịch sử.
+Tạo cấu hình riêng từ `.env.example` ở root; không commit giá trị. Trong `prototype/.env.local`, đặt `AI_PROVIDER=gemini`, `GEMINI_MODEL=gemini-3.8-flash` và `GEMINI_API_KEY` tự nhập từ [Google AI Studio](https://aistudio.google.com/api-keys). Không gửi khóa vào chat, không dùng Google OAuth Client Secret làm API key. Xác minh project Free tier/quota tại [Rate Limit](https://aistudio.google.com/rate-limit); không bật billing. Thiếu hoặc sai cấu hình trả lỗi rõ, không gọi provider khác.
+
+Giữ FREELLMAPI_BASE_URL=http://127.0.0.1:31415/v1, FREELLMAPI_MODEL=auto và khóa local cũ trong `.env.local` ở root; dev/start đọc file cha bằng Node, không cần chép khóa. Muốn quay lại, đổi **chỉ** `AI_PROVIDER=freellmapi` trong `prototype/.env.local`, mở router cũ rồi restart server. Khi không có AI_PROVIDER, cấu hình cũ vẫn chọn local để tương thích; giá trị provider lạ bị từ chối. Không fallback khi Gemini lỗi.
+
+Đặt SUPABASE_URL/SUPABASE_PUBLISHABLE_KEY/AUTH_SITE_URL/AUTH_GOOGLE_ENABLED trong `prototype/.env.local` để Next nạp ở thư mục chạy; dùng đúng project/key của mình. Thiếu cấu hình auth, guest vẫn dùng được. AUTH_SITE_URL local phải khớp127.0.0.1 để giữ origin lịch sử. Không đặt khóa trong biến NEXT_PUBLIC_. Sau sửa env phải restart server.
+
+Điều kiện thử Gemini Free: người dùng ≥18 tuổi, công cụ phục vụ công việc/kinh doanh trong khu vực được hỗ trợ, không hướng đến hoặc có khả năng được người dưới18 truy cập. Không gửi dữ liệu cá nhân/bí mật/nhạy cảm vì Google có thể dùng input/output và người kiểm duyệt đọc. Trước online cần xác minh audience thực và điều kiện khu vực; chưa thể mở công khai chỉ dựa vào xác nhận local. [Điều khoản Google](https://ai.google.dev/gemini-api/terms).
 
 Google Client Secret chỉ trong Google provider Supabase, không cần đặt trong app. Đăng ký callback Google→Supabase của project; Supabase→app là `/auth/callback` với allowlist đúng origin, xem ONLINE_READINESS. Không dùng secret/service-role hoặc biến NEXT_PUBLIC_ cho khóa.
 

@@ -1,8 +1,10 @@
 # CaptionQuangCao — chuẩn bị online, 27–28/10/2026
 
-**Quyết định mới 28/10:** người dùng chọn **A — giữ router, làm rõ điều kiện trước**. Bên dưới giữ B làm phương án đối chiếu, không còn là hướng được chọn. Chưa duyệt VPS/billing, mở router hoặc inference. Cần xác định provider thực trong chuỗi auto và điều kiện cho demo BTC trước khi triển khai A.
+**Bổ sung quyền mới:** người dùng yêu cầu push GitHub và triển khai Preview để xem UI online, giữ main/production. Xem PREVIEW_PROGRESS.md. Cho phép Preview chưa có AI/key mới và Google chưa cấu hình; không mang khóa đã lộ lên Vercel hoặc gọi inference thêm. Các cửa “chưa deploy” bên dưới là giới hạn của giai đoạn trước hoặc cửa bản hoàn chỉnh, không chặn Preview này.
 
-**Chưa deploy và chưa đổi provider AI.** OAuth local chạy thật không đồng nghĩa toàn bộ ứng dụng đã sẵn sàng cho BTC khi máy phát triển tắt.
+**Quyết định hiện hành 28/10:** người dùng đổi sang **Gemini Developer API trực tiếp để kiểm local và chuẩn bị online**, hoãn A/FreeLLMAPI trên VPS. Runtime server cho phép chọn thủ công bằng env, không giao diện chọn provider hoặc fallback. Giữ nguyên cấu hình FreeLLMAPI cũ. Model khóa `gemini-3.8-flash`, reasoning low, endpoint REST chính thức `https://generativelanguage.googleapis.com/v1beta/openai/chat/completions`. Chi tiết: [GEMINI_PROGRESS](GEMINI_PROGRESS.md). Phần so sánh A/B cũ bên dưới là lịch sử nghiên cứu, không còn là quyết định hiện hành.
+
+**Chưa deploy; tích hợp Gemini qua test giả đạt, inference thật đang bị chặn bởi lỗi upstream.** Dùng đủ4/4 lượt cho phép; lượt3 và4 (đối chiếu native) ghi HTTP503 từ Google; lượt1 app502, lượt2 mất bằng chứng do lỗi harness nhưng vẫn tính ngân sách. Không có bộ output thành công, không kết luận chất lượng đạt. Không gọi thêm, retry, sửa JSON bằng AI, bật billing hoặc đổi model/provider. OAuth local chạy thật không đồng nghĩa ứng dụng sẵn sàng BTC khi máy tắt.
 
 ## Hiện trạng đã đối chiếu
 
@@ -13,7 +15,7 @@
 | Hết hạn/refresh/remote revocation | Có tests SDK/upstream giả; chưa kiểm hết hạn thật |
 | Chức năng local Bước 3 | Copy/tạo lại/lịch sử/count đã đạt phạm vi đã thử |
 | Chất lượng AI Bước 4 | Chưa đạt: có bịa dữ kiện, hashtag/tiếng Việt/tông hài hước lỗi; injection chưa đủ bằng chứng ngữ nghĩa |
-| AI đang chạy | Next server → FreeLLMAPI `127.0.0.1:31415/v1/chat/completions`, alias `auto`, timeout90s; Vercel không gọi được router desktop |
+| AI đang chạy | Next server → Gemini trực tiếp, model cố định `gemini-3.8-flash`, low, timeout90s; giữ FreeLLMAPI/auto cho rollback thủ công. Chưa inference thành công |
 | BTC Q1/Q3 | Còn mở; Bước0 tổng thể MỘT PHẦN |
 
 ## GitHub: đích và cách tích hợp
@@ -69,7 +71,7 @@ Giá Standard hiện niêm yết Free input/output trong quota thực được c
 
 Cách tích hợp dự kiến: dùng fetch sẵn có, không thêm SDK chỉ để gọi một endpoint; API chính thức hoặc compatibility `https://generativelanguage.googleapis.com/v1beta/openai/chat/completions` đã có tài liệu, không tự đoán endpoint. Sau lựa chọn mới viết adapter cấu hình server/allowlist, schema3/3/5, cap/timeout/HTTP/JSON/lỗi Việt; giữ không retry/repair/fallback mẫu. Kiểm unit fake cho adapter/auth/origin và budget inference có giới hạn để đo chất lượng/latency. Chưa gọi inference nên không tuyên bố nhanh hơn hoặc đạt Bước4. [Compatibility](https://ai.google.dev/gemini-api/docs/openai), [structured outputs](https://ai.google.dev/gemini-api/docs/structured-output).
 
-Khuyến nghị ban đầu B dựa trên ít thành phần vận hành, nhưng **người dùng đã chọn A**. Không chuyển Gemini trực tiếp. Trước A cần danh sách provider thực (không khóa), quyền/quota/dữ liệu cho demo nhiều người, kiến trúc router private và budget VPS được duyệt; chưa có các thông tin đó thì giữ cửa triển khai đóng.
+Lịch sử: người dùng từng chọn A, sau đó **đã đổi sang Gemini trực tiếp ngày28/10**. A hoãn; không thuê VPS hoặc công khai router. Không dùng giá/model đề xuất cũ làm cấu hình hiện hành.
 
 ## Biến môi trường và ranh giới API online
 
@@ -79,10 +81,11 @@ Khuyến nghị ban đầu B dựa trên ít thành phần vận hành, nhưng *
 | SUPABASE_PUBLISHABLE_KEY | Enabled modern publishable key đúng project; không secret/service-role |
 | AUTH_SITE_URL | Origin HTTPS cố định của môi trường; local vẫn127.0.0.1 |
 | AUTH_GOOGLE_ENABLED | true sau kiểm provider/callback môi trường đó |
-| AI credential | Chỉ loại Secret trong Vercel, đặt tên/giá trị theo phương án được duyệt; không NEXT_PUBLIC_ |
-| AI URL/model | Cấu hình server cố định/allowlist, chỉ được thêm sau lựa chọn A/B; không client quyết định |
+| AI_PROVIDER | `gemini` trong server Vercel sau khi được phép cấu hình/deploy |
+| GEMINI_API_KEY | Secret server của project Free tier đã xác minh; phải thay khóa đã gửi trong chat trước online; không NEXT_PUBLIC_ |
+| GEMINI_MODEL | `gemini-3.8-flash`; server từ chối model khác, URL Google HTTPS cố định trong code |
 
-Không copy Google Client Secret vào repo/Vercel/client: nó ở Google provider Supabase. Không chạy env pull ghi đè env local. Chưa đặt biến Vercel hoặc đổi env AI đang chạy. [Env Secret/Config](https://vercel.com/docs/environment-variables).
+Không copy Google Client Secret vào repo/Vercel/client: nó ở Google provider Supabase. Không chạy env pull ghi đè env local. Chưa đặt biến Vercel. Env AI local đã đổi theo yêu cầu; chỉ file ignored `prototype/.env.local` nhận khóa Gemini, không sao chép vào checkout. [Env Secret/Config](https://vercel.com/docs/environment-variables).
 
 Guard AI hiện từ chối mọi Host/URL ngoài loopback. Cần đổi có test, không tắt validation: đối chiếu origin HTTPS cấu hình, Host đã chuẩn hóa với domain cố định, không tin forwarded Host/client tùy ý; giữ kiểm Origin/Sec-Fetch-Site/MIME/body limit và rejection trước fetch. Test forged Host/origin/subdomain/port/cross-site, redirects/SSRF; upstream cố định không theo request. Giữ guest đủ5chức năng, thêm hạn mức dùng chung/cap ngân sách và chống lạm dụng phù hợp Internet; `inFlight` một process không bảo vệ nhiều instance. Những thay đổi này chưa làm trong lượt nghiên cứu.
 
@@ -107,13 +110,17 @@ Supabase Free hiện50.000MAU/500MBDB/5GBegress/1GBstorage, có thể pause sau7
 
 ## Cửa chặn deploy hoàn chỉnh
 
-1. Người dùng chọn/duyệt A hoặc B; điều kiện tài khoản/provider/chi phí/dữ liệu/audience phù hợp; chưa tạo key/tài khoản/billing.
+1. Gemini đã được duyệt cho thử local; người dùng xác nhận18+, demo công việc/kinh doanh tại Việt Nam và dữ liệu giả/công khai. AI Studio project QuangCao Free tier cho model hiện5RPM/250KTPM/20RPD, có thể trễ15phút. Metadata200 không chứng minh inference/quota dùng được: inference cuối vẫn503. Cần khắc phục upstream và thử lại trong ngân sách mới được giao; thay khóa đã lộ; kiểm audience thực trước online, không mở cho người dưới18 hoặc khu vực không được phép.
 2. Adapter upstream + HTTPS origin/Host guard + rate limit/cost cap đa instance được kiểm, guest vẫn dùng đủ5chức năng.
 3. AI chất lượng Bước4 và budget inference/latency cloud; không lấy JSON hợp lệ thay chất lượng.
 4. Vercel Next/root/scripts/Fluid/protection và env đúng; online callback giữ local; tài khoản ngoài và hết phiên/refresh thật được kiểm.
 5. Q1/Q3 BTC chưa đóng; chỉ deploy theo phạm vi được duyệt, không tuyên bố dùng lâu dài/free vô hạn.
 
 Phần độc lập đã chuẩn bị: source GitHub sạch, README, lockfile, chặn autodeploy, kiểm không inference và tài liệu này. Lượt triển khai tiếp khuyến nghị **GPT-6.1 Sol · High · tốc độ tiêu chuẩn**: đủ để sửa adapter/guard có test và kiểm online khi được duyệt. Không cần đổi model Codex thành model inference.
+
+## Bổ sung Gemini ngày28/10 — chưa push thay đổi lượt này
+
+Thay đổi đang chuẩn bị trên `chore/online-readiness`, HEAD trước sửa `430d379ed4d34ecab017a03a9557c822b50a9c29`. Không merge/deploy/push trong lượt Gemini. Git autodeploy vẫn false ở cả hai vercel.json. Có38/38 node tests (thêm6ca Gemini), build/typecheck đạt; Chrome16nhóm và35tổ hợp trang/kích thước dùng interception đạt, không làm lại OAuth. Kết quả đầy đủ và điều kiện vận hành tại GEMINI_PROGRESS.md; không đóng chất lượng Bước4/Q1/Q3 hoặc tuyên bố BTC dùng lâu dài.
 
 ## Kết quả Git và kiểm cuối — 28/10/2026
 

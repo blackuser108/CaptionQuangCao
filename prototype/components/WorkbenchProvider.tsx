@@ -13,8 +13,8 @@ const generationErrors: Record<string, string> = {
   RATE_LIMITED: 'Dịch vụ đang giới hạn yêu cầu hoặc đang tạo một bộ khác. Hãy chờ rồi chủ động thử lại.',
   INVALID_AI_OUTPUT: 'AI trả nội dung sai cấu trúc hoặc vượt giới hạn xử lý. Bạn có thể chủ động thử lại.',
   UPSTREAM_ERROR: 'Dịch vụ AI trả lỗi. Hãy thử lại sau.',
-  AI_NOT_CONFIGURED: 'Kết nối AI local chưa được cấu hình đúng. Kiểm tra cấu hình phía máy chủ.',
-  AI_UNAVAILABLE: 'Chưa kết nối được dịch vụ AI local. Kiểm tra FreeLLMAPI đang chạy rồi thử lại.',
+  AI_NOT_CONFIGURED: 'Kết nối AI chưa được cấu hình đúng. Kiểm tra cấu hình phía máy chủ.',
+  AI_UNAVAILABLE: 'Chưa kết nối được dịch vụ AI. Kiểm tra kết nối phía máy chủ rồi thử lại.',
   AI_TIMEOUT: 'AI chưa phản hồi kịp. Bạn có thể chủ động thử lại.',
 };
 function focusRegion(id: string) {
