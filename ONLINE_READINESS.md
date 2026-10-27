@@ -1,6 +1,6 @@
 # CaptionQuangCao — chuẩn bị online, 27–28/10/2026
 
-**Bổ sung quyền mới:** người dùng yêu cầu push GitHub và triển khai Preview để xem UI online, giữ main/production. Xem PREVIEW_PROGRESS.md. Cho phép Preview chưa có AI/key mới và Google chưa cấu hình; không mang khóa đã lộ lên Vercel hoặc gọi inference thêm. Các cửa “chưa deploy” bên dưới là giới hạn của giai đoạn trước hoặc cửa bản hoàn chỉnh, không chặn Preview này.
+**Preview hiện hành đã READY:** [Mở website](https://captionquangcao-f65hx7fhz-dragons-projects-e23cb252.vercel.app/), deployment dpl_E9WCtuTka6nPD3pUfqEJSTbhn1vB, commit f1a42a7 trên chore/online-readiness. Người dùng đã cho phép push/deploy Preview, giữ main/production. Xem PREVIEW_PROGRESS.md. Preview chưa có AI/key mới và Google chưa cấu hình; không mang khóa đã lộ lên Vercel hoặc gọi inference thêm. Các cửa “chưa deploy” bên dưới là giới hạn của giai đoạn trước hoặc cửa bản hoàn chỉnh, không chặn Preview này.
 
 **Quyết định hiện hành 28/10:** người dùng đổi sang **Gemini Developer API trực tiếp để kiểm local và chuẩn bị online**, hoãn A/FreeLLMAPI trên VPS. Runtime server cho phép chọn thủ công bằng env, không giao diện chọn provider hoặc fallback. Giữ nguyên cấu hình FreeLLMAPI cũ. Model khóa `gemini-3.8-flash`, reasoning low, endpoint REST chính thức `https://generativelanguage.googleapis.com/v1beta/openai/chat/completions`. Chi tiết: [GEMINI_PROGRESS](GEMINI_PROGRESS.md). Phần so sánh A/B cũ bên dưới là lịch sử nghiên cứu, không còn là quyết định hiện hành.
 

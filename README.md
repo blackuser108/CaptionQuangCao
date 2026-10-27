@@ -1,7 +1,7 @@
 # CaptionQuangCao
 Agent tự động Viết Caption Quảng cáo
 
-**Bản xem online:** đang chuẩn bị Vercel Preview từ nhánh hiện có theo quyền mới của người dùng; xem [PREVIEW_PROGRESS](PREVIEW_PROGRESS.md) cho URL/kết quả sau kiểm. Preview chưa có khóa AI mới, hiển thị rõ AI chưa sẵn sàng; Google online chưa cấu hình, guest truy cập được. Không merge/main production hoặc inference mới.
+**[Mở bản xem online](https://captionquangcao-f65hx7fhz-dragons-projects-e23cb252.vercel.app/)** — Vercel Preview đã READY từ nhánh chore/online-readiness, commit f1a42a7. Chủ dự án đăng nhập Vercel nếu được hỏi. Preview chưa có khóa AI mới, hiển thị rõ AI chưa sẵn sàng; Google online chưa cấu hình, guest truy cập được. Không merge/main production hoặc inference mới. Chi tiết [PREVIEW_PROGRESS](PREVIEW_PROGRESS.md).
 
 ## Trạng thái
 
