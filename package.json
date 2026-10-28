@@ -19,9 +19,9 @@
     "typescript": "7.0.2"
   },
   "scripts": {
-    "dev": "node --env-file-if-exists=.env.local --env-file-if-exists=.env node_modules/next/dist/bin/next dev prototype --hostname 0.0.0.0",
-    "build": "node_modules/next/dist/bin/next build prototype",
-    "start": "node --env-file-if-exists=.env.local --env-file-if-exists=.env node_modules/next/dist/bin/next start prototype --hostname 0.0.0.0",
+    "dev": "node node_modules/next/dist/bin/next dev prototype --hostname 0.0.0.0",
+    "build": "node node_modules/next/dist/bin/next build prototype",
+    "start": "node node_modules/next/dist/bin/next start prototype --hostname 0.0.0.0",
     "typecheck": "npm run typecheck --workspace prototype",
     "test": "npm run test --workspace prototype"
   }

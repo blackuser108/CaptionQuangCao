@@ -21,7 +21,6 @@ function focusRegion(id: string) {
   requestAnimationFrame(() => {
     const region = document.getElementById(id);
     region?.focus({ preventScroll: true });
-    region?.scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
   });
 }
 
@@ -61,7 +60,7 @@ function useWorkbenchState(scopeKey: string, auth: ReturnType<typeof useAuth>) {
     setGenerateError('');
     const nextErrors = validate(input);
     setErrors(nextErrors);
-    if (Object.keys(nextErrors).length) { focusRegion('form-errors'); return; }
+    if (Object.keys(nextErrors).length) return;
     const snapshot = cleanInput(input), controller = new AbortController();
     pending.current = controller;
     inFlight.current = true; setBusy(true); setGenerateError('');
@@ -84,12 +83,12 @@ function useWorkbenchState(scopeKey: string, auth: ReturnType<typeof useAuth>) {
         const message = storageMessage(error);
         setSaveError(message); setHistoryError(message);
       }
-      focusRegion('results-title');
+
     } catch (error) {
       if (controller.signal.aborted || !auth.fence.current(lease)) return;
       const known = error instanceof Error && Object.values(generationErrors).includes(error.message);
       setGenerateError(`${known ? error.message : error instanceof DOMException && error.name === 'TimeoutError' ? generationErrors.AI_TIMEOUT : 'Chưa tạo được nội dung. Kiểm tra kết nối rồi thử lại.'} Form và bản nháp cũ được giữ nguyên.`);
-      focusRegion('generate-error');
+
     } finally {
       if (pending.current === controller) {
         pending.current = null; inFlight.current = false; setBusy(false);
