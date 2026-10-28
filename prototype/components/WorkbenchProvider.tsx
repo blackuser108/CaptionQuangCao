@@ -12,7 +12,7 @@ const generationErrors: Record<string, string> = {
   INVALID_INPUT: 'Thông tin chưa hợp lệ. Kiểm tra đủ bốn trường, tông giọng và độ dài.',
   RATE_LIMITED: 'Dịch vụ đang giới hạn yêu cầu hoặc đang tạo một bộ khác. Hãy chờ rồi chủ động thử lại.',
   INVALID_AI_OUTPUT: 'AI trả nội dung sai cấu trúc hoặc vượt giới hạn xử lý. Bạn có thể chủ động thử lại.',
-  UPSTREAM_ERROR: 'Dịch vụ AI trả lỗi. Hãy thử lại sau.',
+  UPSTREAM_ERROR: 'Gemini đang tạm quá tải hoặc chưa sẵn sàng. Hãy thử lại sau; bản nháp cũ vẫn được giữ.',
   AI_NOT_CONFIGURED: 'Kết nối AI chưa được cấu hình đúng. Kiểm tra cấu hình phía máy chủ.',
   AI_UNAVAILABLE: 'Chưa kết nối được dịch vụ AI. Kiểm tra kết nối phía máy chủ rồi thử lại.',
   AI_TIMEOUT: 'AI chưa phản hồi kịp. Bạn có thể chủ động thử lại.',
@@ -58,6 +58,7 @@ function useWorkbenchState(scopeKey: string, auth: ReturnType<typeof useAuth>) {
   async function generate() {
     if (inFlight.current || auth.phase !== 'ready') return;
     const lease = auth.fence.capture();
+    setGenerateError('');
     const nextErrors = validate(input);
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length) { focusRegion('form-errors'); return; }
