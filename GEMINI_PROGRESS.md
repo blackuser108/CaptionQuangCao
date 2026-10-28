@@ -1,3 +1,9 @@
+# Cập nhật hiện hành28/10: Gemini AUTO đã chạy online
+
+Đích caption-quang-cao.vercel.app, source main1261f83, deploymentdpl_B4CW5RjiQRnPHieGSywnaYLEdSJY READY. AUTO server chọn model cụ thể từ danh mục, không gửi literalauto tớiGoogle; không retry/fallback. Lượtcloud3/3 trả200/4331ms, actualgemini-3.1-flash-lite, đúng3/3/5, copy/historyreloadđạt. Sửa trim ngoài biên của Gemini key có44test/typecheck/buildđạt; không đọc hoặc thay Secretcloud. Chất lượng còn tính từ/“gọn gàng” ngoài dữ kiện và caption3ngắn; chưa đủ3tông/tạo lại online. Đợt AUTO3/3 và đợt cũ4/4 đã dùng hết. Người dùng chuyển tích hợp trực tiếpmain, đã duyệt2Redeployriêng, không tự triển khai thêm. Xem AI_AUTO_PROGRESS.md. Nội dung bên dưới là lịch sử lỗi model3.8và giai đoạnlocal.
+
+---
+
 # Gemini Developer API trực tiếp — 28/10/2026
 
 ## Phạm vi và kết luận

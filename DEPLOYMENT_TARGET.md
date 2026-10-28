@@ -1,5 +1,13 @@
 # Đích Vercel hiện hành — 28/10/2026
 
+## Hiện hành sau lần duyệt bổ sung
+
+Website **https://caption-quang-cao.vercel.app/** đang phục vụ source **main1261f83f1e6c531138943f2c9b508b381e0f9f81**, deployment **dpl_B4CW5RjiQRnPHieGSywnaYLEdSJY**, READY/production. Người dùng duyệt thêm1Redeploy sau lần đầu; đã thực hiện tổng2lần có duyệt riêng, không tự vượt giới hạn.
+
+**Google online đã kiểm thật; AI online đã tạo thật3/3/5**, model thực gemini-3.1-flash-lite/4331ms/HTTP200. Copy và lịch sử reload/Xem lại đạt. AUTO3/3 và đợt cũ4/4 đã dùng hết, chưa inference Tạo lại/cả3tông online. Chất lượng còn tính từ/lợi ích ngoài dữ kiện và caption3ngắn; tài khoản ngoài/expiry/quota/Q1Q3 còn mở. Xem AI_AUTO_PROGRESS.md. Main là nhánh tích hợp theo chỉ dẫn mới; commit tài liệu sau không đổi source runtime/không deploy thêm. Cấu hình/localcallbacks giữ nguyên, keycloud không đọc hoặc thay.
+
+Các đoạn chờ/lỗi/nhánh cũ phía dưới là lịch sử.
+
 ## Kết quả lần cập nhật được duyệt
 
 Đã dùng đúng **1/1** Redeploy: dpl_FJXoNi2ocz3sb6f9w9AynKq83E2J READY/production, source60c23a38d3ff1a592351bf1eaa3f9111a3b4419a, domain canonical trỏ đúng. Đã lưu7env và4callback; Google online login/callback/account/reload/logout thật đạt,14ca trang/mobile đạt. AI local AUTO thành công nhưng AI online lượt2/3 còn AI_NOT_CONFIGURED; không báo hoàn chỉnh.

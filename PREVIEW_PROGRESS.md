@@ -1,5 +1,7 @@
 # Vercel Preview — 28/10/2026
 
+**Kết quả cuối:** người dùng duyệt thêm1Redeploy từ main1261f83, deploymentdpl_B4CW5RjiQRnPHieGSywnaYLEdSJY READY/Production tại caption-quang-cao.vercel.app. AIonline thật200/3-3-5/4331ms/model3.1-flash-lite; copy/historyreloadđạt, Googleonlinethậtđạt. Hai lần Redeploy đều duyệt riêng, không tạo project/alias thủ công hoặc deployprojectcũ. AUTO3/3hết; chất lượng/tài khoản ngoài/expiry/quota/Q1Q3còn mở. Source tích hợpmain, autodeployfalse. Các đoạn lỗi/chờ bên dưới là lịch sử.
+
 **Kết quả hiện hành:** productioncaption-quang-cao đã Redeploy1/1 READY source60c23a3, Google online thật đạt/14ca browser đạt; AI online còn AI_NOT_CONFIGURED. Người dùng chuyển nhánh tích hợp sang main; không tạo branch/PR hoặc deploy thêm. Xem AI_AUTO_PROGRESS.md. Nội dung phía dưới lưu lịch sử.
 
 **Quyền mới nhất:** người dùng đã duyệt7env/4callback và đúng1Redeploy Production vào caption-quang-cao, đồng thời yêu cầu Gemini AUTO. Cấu hình đã lưu, bản sửa43test/build/typecheck đạt, đang chuẩn bị lần deploy đó. Xem AI_AUTO_PROGRESS.md và DEPLOYMENT_TARGET.md; giới hạn chờ trong ghi chép phía dưới đã được thay bởi lần duyệt cụ thể này.

@@ -1,5 +1,20 @@
 # Gemini AUTO — 28/10/2026
 
+## Kết quả cuối lượt — đã có AI thật online
+
+Người dùng đã duyệt thêm đúng1Redeploy từ main1261f83 để kiểm bản trim cấu hình. Deployment **dpl_B4CW5RjiQRnPHieGSywnaYLEdSJY** READY/production; alias **https://caption-quang-cao.vercel.app/** trỏ đúng. Tổng2Redeploy, mỗi lần đều được duyệt riêng; không tạo project, không gọi create-alias, không deploy project cũ. Main nhận code trực tiếp; nhánh cũ giữ làm lịch sử, không tiếp tục sửa trên đó. Git autodeploy vẫn false; commit tài liệu cuối không Redeploy.
+
+- Ngân sách AUTO đã dùng3/3 thao tác kiểm, không gọi thêm:1localformal thành công,2cloudhumorous lỗi cấu hình,3cloudyouthful thành công sau sửa trim. Ngân sách cũ4/4 là đợt riêng. Không retry hoặc thêm inference trong cùng thao tác.
+- Log server cloud lượt3: **status200/upstream200**, **4331ms**, requestedModel=actualModel=**gemini-3.1-flash-lite**, usage prompt1113/completion254/total1494 theo Google. Không log input/output/key. Đã có bằng chứng model thực và output thật, không chỉ danh mục hoặc build.
+- Trình duyệt render đúng3caption/3headline/5hashtag; copycaption1 đối chiếu clipboard đúng. Lịch sử guest có recordAI, reload rồi Xem lại đủ11nội dung copy. Không dùng fixture, không gọi Tạo lại khi hết ngân sách; nút Tạo lại enabled nhưng inference tạo lại chưa kiểm online.
+- Chất lượng mẫu trẻ trung: tiếng Việt/hashtag có nghĩa, đúng sản phẩm, không bịa giá/ưu đãi/chứng thực/chính sách. Caption1=61,caption2=170,caption3=166ký tự; mở đầu61/40/48 và headline18/29/25. Caption3 dưới mục tiêu180; headline “gọn gàng” và các tính từ “nhỏ xinh/nổi bật/đơn giản” là phần thêm ngoài dữ kiện. Tông trẻ trung còn nhẹ. **Chưa nghiệm thu chất lượng dữ kiện hoàn toàn hoặc cả3tông**; không sửa JSON/AI bổ sung để che kết quả.
+- Sửa trim chỉ chuẩn hóa whitespace ngoài biên của Gemini key; control character giữa khóa vẫn bị chặn. Có test đỏ→xanh,44/44test/typecheck/productionbuild đạt, source/client scan không phát hiện bí mật. Cloud từ lỗi cấu hình sang200 sau thay đổi này; không đọc Secret nên không mô tả ký tự cụ thể trong khóa cloud.
+- Google login/callback/account/reload/logout thật đã đạt trên origincanonical ở deployment trước; logic auth không đổi. 14ca desktop/mobile+refresh đạt trên bảnUIcùng nguồn,0generate trong harness. Chưa kiểm tài khoản ngoài chủ/expiry/revocation thật/quota tải lớn. Q1/Q3 vẫn mở.
+
+Khóa cũ đang được người dùng chủ động giữ trên Vercel. Agent không đọc/tải lại giá trị, không bật billing; cần chủ thay khóa từng lộ để giảm rủi ro. Vận hành khi máy tắt đã dùng hostedAPI, nhưng không hứa quota/free/lâu dài. Bằng chứng private trong workspace: auto-live-ledger.json, online-ai-rendered.txt, online-history-rendered.txt, online-ai-success.png và runtime metadata.
+
+Các mục lỗi/chờ ở dưới là lịch sử trước lần Redeploy bổ sung.
+
 ## Kết quả online và chỉ dẫn mới nhất
 
 Người dùng yêu cầu cập nhật trực tiếp **main**, không tách branch/PR khi ứng dụng chưa chạy. Chỉ dẫn này thay giới hạn nhánh ở ghi chép lịch sử bên dưới. Source60c23a3 đã deploy đúng một lần vào production hiện có, deployment dpl_FJXoNi2ocz3sb6f9w9AynKq83E2J READY; alias caption-quang-cao.vercel.app đã trỏ đúng. Git autodeploy vẫn false ở cả hai vercel.json; cập nhật main không tạo deploy thứ hai.

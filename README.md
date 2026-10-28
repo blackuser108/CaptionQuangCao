@@ -1,11 +1,7 @@
 # CaptionQuangCao
 Agent tự động Viết Caption Quảng cáo
 
-**Trạng thái mới nhất:** website Production đã cập nhật đúng1lần; Google login/callback/account/reload/logout đã kiểm thật với chủ dự án. AI AUTO local đã trả3/3/5, nhưng form online còn lỗi cấu hình, chưa có output thật online. Source và bản sửa tiếp theo tích hợp trực tiếp main theo yêu cầu mới; không tạo branch/PR mới. Xem AI_AUTO_PROGRESS.md. Quyền một Redeploy đã dùng hết; không tự deploy bản sửa tiếp theo.
-
-**Đích hiện hành:** [caption-quang-cao.vercel.app](https://caption-quang-cao.vercel.app/) (Production). Ngày 28/10 người dùng duyệt cập nhật bảy biến server, bốn callback và đúng một Redeploy cùng project. Đã lưu cấu hình; bản sửa đang qua kiểm trước lần Redeploy đó. Xem [DEPLOYMENT_TARGET](DEPLOYMENT_TARGET.md) và [AI_AUTO_PROGRESS](AI_AUTO_PROGRESS.md). Các link Preview bên dưới chỉ là lịch sử project cũ.
-
-**[Mở bản xem online](https://captionquangcao-f65hx7fhz-dragons-projects-e23cb252.vercel.app/)** — Vercel Preview đã READY từ nhánh chore/online-readiness, commit f1a42a7. Chủ dự án đăng nhập Vercel nếu được hỏi. Preview chưa có khóa AI mới, hiển thị rõ AI chưa sẵn sàng; Google online chưa cấu hình, guest truy cập được. Không merge/main production hoặc inference mới. Chi tiết [PREVIEW_PROGRESS](PREVIEW_PROGRESS.md).
+**Đang chạy online:** [Mở Bàn biên tập](https://caption-quang-cao.vercel.app/). Google đăng nhập/đăng xuất đã kiểm thật với chủ dự án; AI AUTO đã tạo thật3/3/5 trong khoảng4,3s bằng gemini-3.1-flash-lite. Copy và lịch sử sau reload đạt. Source runtime main1261f83; tích hợp tiếp trực tiếp main. Chưa nghiệm thu chất lượng toàn bộ/tài khoản ngoài/quota tải BTC. Xem AI_AUTO_PROGRESS.md; các mục lỗi/chờ phía dưới là lịch sử lượt tích hợp.
 
 ## Trạng thái
 
