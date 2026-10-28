@@ -1,5 +1,16 @@
 # Gemini AUTO — 28/10/2026
 
+## Kết quả online và chỉ dẫn mới nhất
+
+Người dùng yêu cầu cập nhật trực tiếp **main**, không tách branch/PR khi ứng dụng chưa chạy. Chỉ dẫn này thay giới hạn nhánh ở ghi chép lịch sử bên dưới. Source60c23a3 đã deploy đúng một lần vào production hiện có, deployment dpl_FJXoNi2ocz3sb6f9w9AynKq83E2J READY; alias caption-quang-cao.vercel.app đã trỏ đúng. Git autodeploy vẫn false ở cả hai vercel.json; cập nhật main không tạo deploy thứ hai.
+
+- Google online thật: chọn tài khoản đã được cấp quyền, callback vào /account, reload vẫn có nút đăng xuất; logout về /login?loggedOut=1. Không cần consent mới. Chưa kiểm người ngoài chủ/expiry thật.
+- 14ca route×viewport390/1440+refresh đạt, Google enabled, không tràn ngang/pageerror, draft create↔history giữ đúng. Harness chặn generate,0lượt AI.
+- Lượt kiểm AI2/3 qua form online tông humorous trả AI_NOT_CONFIGURED; chưa có kết quả, không trả mẫu. Năm Config origin/auth/provider/model đối chiếu đúng; GETsession loginEnabled=true và FAQ mới chứng minh bản mới đang phục vụ. Runtime MCP không có log generate; không suy ra quota/Google outage hoặc khóa mới/cũ là nguyên nhân. Secret cloud không đọc được/không đọc.
+- Còn1lượt kiểm mới; chưa gửi. Đã tái hiện bằng mock: khóa server có CR/LF/khoảng trắng ngoài biên bị từ chối trước fetch. Bản sửa tiếp theo trim ngoài biên của riêng Gemini, vẫn từ chối control character nằm giữa. Đây là giả thuyết định dạng cần kiểm online, chưa phải root cause được xác nhận. TDD đỏ→xanh,44test đạt. Sửa này chưa có trong deployment60c23a3; cần được duyệt thêm1Redeploy nếu muốn áp dụng. Không tự deploy lần hai.
+
+Khóa cũ đang có trên Vercel theo lựa chọn người dùng; agent không đổi/đọc/copy giá trị. Chất lượng dữ kiện của mẫu local chưa đạt hoàn toàn. Không gọi là AI online hoạt động.
+
 Người dùng yêu cầu AI hoạt động với lựa chọn tự động thay model cố định; đồng thời duyệt đúng một Redeploy vào project `caption-quang-cao`, không merge main/project/alias mới/billing. Đã đối chiếu main3b400ea và giữ toàn bộ thay đổi của người dùng trong nhánh làm việc. Nhánh remote cũ đã bị xóa; dùng lại tên nhánh làm việc local chore/online-readiness, không sửa main.
 
 ## Cơ chế tối thiểu

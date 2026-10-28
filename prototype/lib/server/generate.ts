@@ -91,7 +91,7 @@ export function createGenerateHandler({ env = process.env, fetchUpstream = fetch
       if (Object.keys(validate(input)).length) return failure('INVALID_INPUT');
     } catch { return failure('INVALID_INPUT'); }
     const provider = env.AI_PROVIDER ?? 'freellmapi', gemini = provider === 'gemini';
-    const key = gemini ? env.GEMINI_API_KEY : env.FREELLMAPI_API_KEY;
+    const key = gemini ? env.GEMINI_API_KEY?.trim() : env.FREELLMAPI_API_KEY;
     let model = gemini ? env.GEMINI_MODEL : env.FREELLMAPI_MODEL;
     if (!['gemini', 'freellmapi'].includes(provider) || !key || !/^[\x21-\x7e]{1,512}$/.test(key) ||
       (gemini ? !['auto', 'gemini-3.8-flash', ...autoModels].includes(model || '') : env.FREELLMAPI_BASE_URL !== 'http://127.0.0.1:31415/v1' || model !== 'auto')) return failure('AI_NOT_CONFIGURED');

@@ -187,6 +187,18 @@ test('Gemini configuration fails closed, with no fallback to the configured loca
   assert.equal(calls, 0);
 });
 
+test('Gemini trims accidental surrounding whitespace from server configuration but rejects embedded control characters', async () => {
+  let calls = 0;
+  const upstream = (async (_url, options) => {
+    calls++;
+    assert.equal(new Headers(options?.headers).get('authorization'), 'Bearer test-secret-only');
+    return new Response(envelope());
+  }) as typeof fetch;
+  assert.equal((await handler(upstream, { env: { ...geminiEnv, GEMINI_API_KEY: ' \r\ntest-secret-only\n ' } })(request())).status, 200);
+  await failure(await handler(upstream, { env: { ...geminiEnv, GEMINI_API_KEY: 'test\nsecret-only' } })(request()), 503, 'AI_NOT_CONFIGURED');
+  assert.equal(calls, 1);
+});
+
 test('Gemini auto selects an accessible stable JSON model before exactly one inference', async () => {
   const calls: string[] = [], logs: { requestedModel: string }[] = [];
   const run = handler((async (url, options) => {

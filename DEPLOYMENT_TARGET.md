@@ -1,5 +1,11 @@
 # Đích Vercel hiện hành — 28/10/2026
 
+## Kết quả lần cập nhật được duyệt
+
+Đã dùng đúng **1/1** Redeploy: dpl_FJXoNi2ocz3sb6f9w9AynKq83E2J READY/production, source60c23a38d3ff1a592351bf1eaa3f9111a3b4419a, domain canonical trỏ đúng. Đã lưu7env và4callback; Google online login/callback/account/reload/logout thật đạt,14ca trang/mobile đạt. AI local AUTO thành công nhưng AI online lượt2/3 còn AI_NOT_CONFIGURED; không báo hoàn chỉnh.
+
+**Nhánh hiện hành đổi sang main theo yêu cầu trực tiếp mới của người dùng.** Giữ toàn bộ lịch sử/main3b400ea và source60c23a3. Không tạo branch/PR/deploy mới từ chỉ dẫn main; autodeployfalse vẫn giữ. Bản trim khoảng trắng cấu hình Gemini đã có test, sẽ đưa main nhưng chưa áp dụng online nếu chưa được phép thêm1Redeploy. Chi tiết AI_AUTO_PROGRESS.md.
+
 ## Cập nhật được duyệt trong lượt hiện hành
 
 Người dùng đã trả lời **“Cho phép cập nhật và 1 Redeploy đúng project này”**. Quyền này thay lệnh chờ phía dưới cho đúng một lần: cập nhật7envProduction, thêm4callback canonical, push nhánh làm việc và deploy vào project hiện có; không tạo project/alias khác, không merge main. Yêu cầu AUTO mới đổi GEMINI_MODEL dự kiến từ gemini-3.8-flash thành auto với lựa chọn cụ thể phía server, không gửi literal auto cho Google. Xem AI_AUTO_PROGRESS.md. Bảy env đã lưu;12redirect đã kiểm, SiteURLlocal không đổi. Chưa gọi inference cloud; chuẩn bị lần Redeploy duy nhất.
