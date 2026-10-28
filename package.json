@@ -1,0 +1,14 @@
+{
+  "name": "caption-quang-cao",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "npm@11",
+  "workspaces": ["prototype"],
+  "scripts": {
+    "dev": "node --env-file-if-exists=.env.local --env-file-if-exists=.env node_modules/next/dist/bin/next dev prototype --hostname 127.0.0.1",
+    "build": "node_modules/next/dist/bin/next build prototype",
+    "start": "node --env-file-if-exists=.env.local --env-file-if-exists=.env node_modules/next/dist/bin/next start prototype --hostname 127.0.0.1",
+    "typecheck": "npm run typecheck --workspace prototype",
+    "test": "npm run test --workspace prototype"
+  }
+}
