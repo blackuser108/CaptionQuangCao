@@ -181,10 +181,53 @@ test('Gemini uses the fixed Google REST endpoint, server model/key and structure
 
 test('Gemini configuration fails closed, with no fallback to the configured local router', async () => {
   let calls = 0;
-  for (const change of [{ GEMINI_API_KEY: '' }, { GEMINI_API_KEY: 'bad\nkey' }, { GEMINI_MODEL: 'auto' }, { GEMINI_MODEL: 'gemini-3.8-flash/../../other' }, { AI_PROVIDER: 'unknown' }]) {
+  for (const change of [{ GEMINI_API_KEY: '' }, { GEMINI_API_KEY: 'bad\nkey' }, { GEMINI_MODEL: 'unapproved-model' }, { GEMINI_MODEL: 'gemini-3.8-flash/../../other' }, { AI_PROVIDER: 'unknown' }]) {
     await failure(await handler((async () => { calls++; return new Response(envelope()); }) as typeof fetch, { env: { ...geminiEnv, ...change } })(request()), 503, 'AI_NOT_CONFIGURED');
   }
   assert.equal(calls, 0);
+});
+
+test('Gemini auto selects an accessible stable JSON model before exactly one inference', async () => {
+  const calls: string[] = [], logs: { requestedModel: string }[] = [];
+  const run = handler((async (url, options) => {
+    calls.push(String(url));
+    if (calls.length === 1) {
+      assert.equal(String(url), 'https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000');
+      assert.equal(new Headers(options?.headers).get('x-goog-api-key'), 'test-secret-only');
+      assert.equal(options?.method, 'GET');
+      return Response.json({ models: ['gemini-3.8-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite'].map(name => ({ name: `models/${name}`, supportedGenerationMethods: ['generateContent'] })) });
+    }
+    assert.equal(JSON.parse(String(options?.body)).model, 'gemini-3.1-flash-lite');
+    return new Response(envelope());
+  }) as typeof fetch, { env: { ...geminiEnv, GEMINI_MODEL: 'auto' }, log: (data: { requestedModel: string }) => logs.push(data) });
+  assert.equal((await run(request())).status, 200);
+  assert.equal(calls.length, 2);
+  assert.equal(logs[0].requestedModel, 'gemini-3.1-flash-lite');
+});
+
+test('Gemini auto uses second approved candidate only when first is absent; never retries inference', async () => {
+  let calls = 0;
+  const run = handler((async (_url, options) => {
+    if (++calls === 1) return Response.json({ models: [{ name: 'models/gemini-3.5-flash-lite', supportedGenerationMethods: ['generateContent'] }] });
+    assert.equal(JSON.parse(String(options?.body)).model, 'gemini-3.5-flash-lite');
+    return new Response('UPSTREAM_PRIVATE', { status: 503 });
+  }) as typeof fetch, { env: { ...geminiEnv, GEMINI_MODEL: 'auto' } });
+  await failure(await run(request()), 502, 'UPSTREAM_ERROR');
+  assert.equal(calls, 2);
+});
+
+test('Gemini auto fails closed on unavailable, malformed, oversized or HTTP model catalog without inference', async () => {
+  for (const [body, status, code] of [
+    [JSON.stringify({ models: [{ name: 'models/gemini-3.8-flash', supportedGenerationMethods: ['generateContent'] }] }), 200, 'AI_NOT_CONFIGURED'],
+    [JSON.stringify({ models: [{ name: 'models/gemini-3.1-flash-lite', supportedGenerationMethods: ['countTokens'] }] }), 200, 'AI_NOT_CONFIGURED'],
+    ['null', 200, 'INVALID_AI_OUTPUT'], ['bad JSON', 200, 'INVALID_AI_OUTPUT'], ['x'.repeat(256 * 1024 + 1), 200, 'INVALID_AI_OUTPUT'],
+    ['UPSTREAM_PRIVATE', 429, 'RATE_LIMITED'], ['UPSTREAM_PRIVATE', 403, 'UPSTREAM_ERROR'],
+  ] as const) {
+    let calls = 0;
+    const run = handler((async () => { calls++; return new Response(body, { status }); }) as typeof fetch, { env: { ...geminiEnv, GEMINI_MODEL: 'auto' } });
+    await failure(await run(request()), code === 'AI_NOT_CONFIGURED' ? 503 : code === 'RATE_LIMITED' ? 429 : 502, code);
+    assert.equal(calls, 1);
+  }
 });
 
 test('Gemini rejects invalid input and injected provider controls before upstream', async () => {

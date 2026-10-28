@@ -1,5 +1,9 @@
 # Vercel Preview — 28/10/2026
 
+**Quyền mới nhất:** người dùng đã duyệt7env/4callback và đúng1Redeploy Production vào caption-quang-cao, đồng thời yêu cầu Gemini AUTO. Cấu hình đã lưu, bản sửa43test/build/typecheck đạt, đang chuẩn bị lần deploy đó. Xem AI_AUTO_PROGRESS.md và DEPLOYMENT_TARGET.md; giới hạn chờ trong ghi chép phía dưới đã được thay bởi lần duyệt cụ thể này.
+
+**ĐÍCH MỚI, GIỚI HẠN MỚI:** người dùng đã tạo project **caption-quang-cao**, deployment dpl_EJvfap5P1uB7u25MXTFkxEvsfQQQ READY/production, website **https://caption-quang-cao.vercel.app/** và yêu cầu **không tạo thêm**. Dừng deploy/project/alias mới và push có thể trigger autodeploy; không tiếp tục projectcaptionquangcao cũ. Xem DEPLOYMENT_TARGET.md cho metadata, kết quả chỉ đọc và bản sửa/cấu hình đã chuẩn bị. Các kết quả Preview phía dưới là lịch sử project cũ.
+
 Người dùng đã cho phép push GitHub và dựng bản xem online trong chat gốc; quyền này thay cửa chưa deploy của lượt Gemini trước. Phạm vi chỉ Preview trên chore/online-readiness; không merge main/production, đổi visibility, billing, Convex hoặc inference mới.
 
 ## Nội dung bản xem thử

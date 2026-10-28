@@ -64,7 +64,7 @@ export default function Page() {
 <section className="light-section"><div className="wrap faq-grid"><div><p className="eyebrow">Trước khi bắt đầu</p>
 <h2>Một vài điều<br />cần nói rõ.</h2>
 </div>
-<div className="faq"><details open><summary>Tôi có cần đăng nhập không?</summary><p>Không. Bạn vẫn có thể tạo nội dung, copy, tạo lại, dùng lịch sử trên máy và xem bộ đếm. Đăng nhập Google hiện chưa khả dụng.</p>
+<div className="faq"><details open><summary>Tôi có cần đăng nhập không?</summary><p>Không. Bạn vẫn có thể tạo nội dung, copy, tạo lại, dùng lịch sử trên máy và xem bộ đếm. Google là lựa chọn bổ sung khi được cấu hình; chế độ khách không cần tài khoản.</p>
 </details>
 <details><summary>Lịch sử có theo tôi sang thiết bị khác?</summary><p>Chưa có đồng bộ. Lịch sử chỉ nằm trong trình duyệt hiện tại; xóa dữ liệu trình duyệt có thể làm mất các mục đã lưu.</p>
 </details>

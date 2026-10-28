@@ -1,0 +1,26 @@
+# Gemini AUTO — 28/10/2026
+
+Người dùng yêu cầu AI hoạt động với lựa chọn tự động thay model cố định; đồng thời duyệt đúng một Redeploy vào project `caption-quang-cao`, không merge main/project/alias mới/billing. Đã đối chiếu main3b400ea và giữ toàn bộ thay đổi của người dùng trong nhánh làm việc. Nhánh remote cũ đã bị xóa; dùng lại tên nhánh làm việc local chore/online-readiness, không sửa main.
+
+## Cơ chế tối thiểu
+
+`AI_PROVIDER=gemini`, `GEMINI_MODEL=auto` chỉ phía server. Một GET danh mục Google, chọn theo thứ tự hai stable model hỗ trợ structured output: gemini-3.1-flash-lite, gemini-3.5-flash-lite, chỉ khi có generateContent. Không đưa gemini-3.8-flash từng lỗi vào AUTO. Một inference duy nhất, reasoning low, cùng endpoint OpenAI-compatible, prompt/validator3-3-5. Không retry/fallback provider/sửa JSON/mẫu. Giới hạn thời gian90s bao gồm danh mục và inference; cap danh mục256KiB và nội dung32KiB. Danh mục không cung cấp quota hay bảo đảm inference.
+
+## Bằng chứng trước deploy
+
+- GET danh mục bằng key server hiện có trả200, cả hai candidate xuất hiện; không in giá trị khóa. Người dùng xác nhận Vercel đang dùng khóa cũ và yêu cầu tiếp tục; agent không tải khóa local lên Vercel hay đọc lại Secret cloud. Khóa từng lộ vẫn cần được chủ thay khi phù hợp.
+- Ngân sách cũ4/4 giữ nguyên. Đợt AUTO mới giới hạn3 inference, ghi trước khi POST; đã dùng1/3 local, model thực gemini-3.1-flash-lite,200,2907ms, đúng3/3/5. Prompt1112/completion273/total1550 token theo metadata Google; không suy total bằng phép cộng vì có thinking tokens.
+- Đọc chất lượng: headline/hashtag có nghĩa và liên quan, không bịa giá/ưu đãi. Tuy nhiên “hệ thống hóa kiến thức” suy diễn lợi ích chưa có; chưa nghiệm thu chất lượng dữ kiện hoàn toàn. Còn2lượt dành kiểm website, không tự gọi thêm sau429/thanh toán.
+- TDD: ba ca AUTO đỏ trước sửa rồi xanh; toàn bộ43test đạt sau đưa thay đổi main mới vào nhánh. Typecheck đạt. Production build đạt; lần đầu Windows EPERM ở .next, chạy lại với quyền filesystem phù hợp thành công, không xóa/dừng ứng dụng khác.
+- Seven envProduction đã lưu đúng project; Supabase12redirect gồm8cũ+4callback canonical mới, SiteURLlocal giữ nguyên. Google online/AI online sẽ kiểm sau một Redeploy được duyệt, chưa nhận local inference là chứng minh cloud.
+
+## Nguồn chính thức đã kiểm
+
+- [Models](https://ai.google.dev/gemini-api/docs/models): stable IDs, không có model auto.
+- [Flash-Lite3.1](https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-lite) và [Flash-Lite3.5](https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite): stable, structured output.
+- [Models list](https://ai.google.dev/api/models): danh mục và supportedGenerationMethods.
+- [OpenAI compatibility](https://ai.google.dev/gemini-api/docs/openai): endpoint/bearer/JSONschema/reasoning low.
+- [Pricing](https://ai.google.dev/gemini-api/docs/pricing): có Free tier; quota thực theo tài khoản, không bật billing hoặc hứa miễn phí lâu dài.
+- [Supabase redirects](https://supabase.com/docs/guides/auth/redirect-urls): callback app phải khớp allowlist.
+
+Chưa kiểm tài khoản ngoài chủ, expiry/revocation thật, vận hành lâu dài/quota tải BTC. Q1/Q3 vẫn mở.

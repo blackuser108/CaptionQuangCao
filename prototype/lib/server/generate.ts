@@ -60,6 +60,7 @@ const geminiFormat = { type: 'json_schema', json_schema: { name: 'content_set', 
   type: 'object', additionalProperties: false, required: ['captions', 'headlines', 'hashtags'],
   properties: Object.fromEntries(['captions', 'headlines', 'hashtags'].map((name, i) => [name, { type: 'array', items: { type: 'string' }, minItems: [3, 3, 5][i], maxItems: [3, 3, 5][i] }])),
 } } };
+const autoModels = ['gemini-3.1-flash-lite', 'gemini-3.5-flash-lite'];
 
 export function createGenerateHandler({ env = process.env, fetchUpstream = fetch, timeoutMs = generationTimeoutMs, log = console.info }: Options = {}) {
   // shortcut: guard chỉ dùng cho một process local; cần cơ chế dùng chung trước khi triển khai nhiều instance.
@@ -91,15 +92,36 @@ export function createGenerateHandler({ env = process.env, fetchUpstream = fetch
     } catch { return failure('INVALID_INPUT'); }
     const provider = env.AI_PROVIDER ?? 'freellmapi', gemini = provider === 'gemini';
     const key = gemini ? env.GEMINI_API_KEY : env.FREELLMAPI_API_KEY;
-    const model = gemini ? env.GEMINI_MODEL : env.FREELLMAPI_MODEL;
+    let model = gemini ? env.GEMINI_MODEL : env.FREELLMAPI_MODEL;
     if (!['gemini', 'freellmapi'].includes(provider) || !key || !/^[\x21-\x7e]{1,512}$/.test(key) ||
-      (gemini ? model !== 'gemini-3.8-flash' : env.FREELLMAPI_BASE_URL !== 'http://127.0.0.1:31415/v1' || model !== 'auto')) return failure('AI_NOT_CONFIGURED');
+      (gemini ? !['auto', 'gemini-3.8-flash', ...autoModels].includes(model || '') : env.FREELLMAPI_BASE_URL !== 'http://127.0.0.1:31415/v1' || model !== 'auto')) return failure('AI_NOT_CONFIGURED');
     if (inFlight) return failure('RATE_LIMITED');
     inFlight = true;
     const controller = new AbortController(), started = Date.now();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     let status = 503, upstreamStatus: number | undefined, actualModel: string | undefined, usage: Record<string, number> | undefined;
     try {
+      if (gemini && model === 'auto') {
+        const catalog = await fetchUpstream('https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000', {
+          method: 'GET', redirect: 'error', cache: 'no-store', signal: controller.signal, headers: { 'x-goog-api-key': key },
+        });
+        upstreamStatus = catalog.status;
+        if (!catalog.ok) {
+          void catalog.body?.cancel().catch(() => {});
+          status = catalog.status === 429 ? 429 : 502;
+          return failure(status === 429 ? 'RATE_LIMITED' : 'UPSTREAM_ERROR');
+        }
+        try {
+          const data = JSON.parse(await readLimited(catalog, 256 * 1024, controller.signal));
+          if (!data || !Array.isArray(data.models)) throw new Error('INVALID_CATALOG');
+          model = autoModels.find(name => data.models.some((entry: { name?: unknown; supportedGenerationMethods?: unknown } | null) =>
+            entry?.name === `models/${name}` && Array.isArray(entry.supportedGenerationMethods) && entry.supportedGenerationMethods.includes('generateContent')));
+          if (!model) return failure('AI_NOT_CONFIGURED');
+        } catch {
+          status = controller.signal.aborted ? 504 : 502;
+          return failure(controller.signal.aborted ? 'AI_TIMEOUT' : 'INVALID_AI_OUTPUT');
+        }
+      }
       const upstream = await fetchUpstream(gemini ? 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions' : 'http://127.0.0.1:31415/v1/chat/completions', {
         method: 'POST', redirect: 'error', cache: 'no-store', signal: controller.signal,
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
