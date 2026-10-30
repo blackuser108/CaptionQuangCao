@@ -20,8 +20,7 @@ const generationErrors: Record<string, string> = {
 function focusRegion(id: string) {
   requestAnimationFrame(() => {
     const region = document.getElementById(id);
-    region?.focus({ preventScroll: true });
-    region?.scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
+    region?.focus();
   });
 }
 
@@ -37,6 +36,15 @@ function useWorkbenchState(scopeKey: string, auth: ReturnType<typeof useAuth>) {
   const [busy, setBusy] = useState(false);
   const inFlight = useRef(false);
   const pending = useRef<AbortController | null>(null);
+  const resultFocus = useRef(false);
+
+  useEffect(() => {
+    // Auth refresh temporarily hides private DOM; focus after it has rendered again.
+    if (auth.phase === 'ready' && current && resultFocus.current) {
+      resultFocus.current = false;
+      focusRegion('results-title');
+    }
+  }, [current, auth.phase]);
 
   useEffect(() => {
     if (auth.phase !== 'ready') return;
@@ -77,6 +85,7 @@ function useWorkbenchState(scopeKey: string, auth: ReturnType<typeof useAuth>) {
       await auth.refresh();
       if (controller.signal.aborted || !auth.fence.current(lease)) return;
       const entry: Entry = { id: crypto.randomUUID(), createdAt: new Date().toISOString(), input: snapshot, output: data };
+      resultFocus.current = true;
       setCurrent(entry); setSaveError('');
       try {
         setEntries(addHistory(localStorage, entry, scopeKey)); setHistoryError('');
@@ -84,7 +93,6 @@ function useWorkbenchState(scopeKey: string, auth: ReturnType<typeof useAuth>) {
         const message = storageMessage(error);
         setSaveError(message); setHistoryError(message);
       }
-      focusRegion('results-title');
     } catch (error) {
       if (controller.signal.aborted || !auth.fence.current(lease)) return;
       const known = error instanceof Error && Object.values(generationErrors).includes(error.message);

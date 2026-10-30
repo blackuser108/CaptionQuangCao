@@ -3,7 +3,8 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const base = 'http://127.0.0.1:3000', key = 'ban-bien-tap:history:v1', oldKey = 'ban-bien-tap:prototype:history:v1';
+const base = process.env.BASE_URL || 'http://127.0.0.1:3000', key = 'ban-bien-tap:history:v1', oldKey = 'ban-bien-tap:prototype:history:v1';
+assert.match(base, /^http:\/\/127\.0\.0\.1:\d+$/);
 const out = path.resolve(__dirname, process.argv.find(arg => arg.startsWith('--out='))?.slice(6) || '../../evidence/redesign-v2-implementation');
 const checks = [], errors = [], layouts = [], requests = [], external = [];
 const norm = text => text.normalize('NFC').replace(/\r\n?/g, '\n');
@@ -13,7 +14,10 @@ let reply = { status: 200, body: output }, hold = null;
 async function check(name, fn) { await fn(); checks.push(name); console.log('PASS', name); }
 async function shot(page, name) { await page.screenshot({ path: path.join(out, name+'.png'), fullPage: true }); }
 async function saved(page) { return page.evaluate(k => localStorage.getItem(k), key); }
-async function navigate(page, route) { await page.goto(base+route, { waitUntil:'networkidle' }); }
+async function readyTool(page) {
+  if (['/create','/history'].includes(new URL(page.url()).pathname)) await page.locator('.workspace-badge').waitFor();
+}
+async function navigate(page, route) { await page.goto(base+route, { waitUntil:'networkidle' }); await readyTool(page); }
 async function done(page) { await page.waitForFunction(() => document.querySelector('.primary') && !document.querySelector('.primary').disabled); }
 async function generate(page, again=false) {
   await page.getByRole('button',{name:again?'Tạo lại':'Tạo nội dung',exact:again}).click();
@@ -50,12 +54,19 @@ async function layout(page,width,route,state='empty') {
   page.on('pageerror',e=>errors.push(e.message));
   page.on('request',r=>{if(!r.url().startsWith(base)&&!r.url().startsWith('data:'))external.push(r.url())});
   try {
+    await check('Invalid form moves keyboard focus to the visible error summary without calling AI',async()=>{
+      await navigate(page,'/create');await generate(page);
+      await page.waitForFunction(()=>{const e=document.getElementById('form-errors'),r=e?.getBoundingClientRect();return e===document.activeElement&&r.top>=0&&r.bottom<=innerHeight},null,{timeout:2000});
+      assert.equal(requests.length,0);
+      await page.getByRole('link',{name:'Về form ↑',exact:true}).click();
+      await page.waitForFunction(()=>document.getElementById('form-title').getBoundingClientRect().top>=document.querySelector('header').getBoundingClientRect().bottom,null,{timeout:2000});
+    });
     await check('35 route/viewport combinations: direct URLs, refresh, no auto generation, no overflow',async()=>{
       for(const width of [320,390,768,1024,1440]) {
         await page.setViewportSize({width,height:1000});
         for(const route of ['/','/features','/create','/history','/about','/login','/account']) {
           const response=await page.goto(base+route,{waitUntil:'networkidle'});assert.equal(response.status(),200);
-          await page.reload({waitUntil:'networkidle'});await layout(page,width,route);
+          await page.reload({waitUntil:'networkidle'});await readyTool(page);await layout(page,width,route);
           if([390,1440].includes(width)&&['/','/create','/history','/about','/login'].includes(route))await shot(page,(route==='/'?'home':route.slice(1))+'-empty-'+width);
         }
       }
@@ -90,6 +101,7 @@ async function layout(page,width,route,state='empty') {
     await check('Form validates four fields, supports three tones, no invalid request',async()=>{
       await navigate(page,'/create');await generate(page);assert.equal(await page.locator('#form-errors li').count(),4);assert.equal(requests.length,0);
       await page.getByRole('button',{name:'Dùng thông tin mẫu'}).click();
+      assert.equal(await page.locator('#form-title').evaluate(e=>e===document.activeElement),true);
       for(const name of ['Hài hước','Trang trọng','Trẻ trung']){await page.getByRole('radio',{name,exact:true}).check();assert.equal(await page.getByRole('radio',{name,exact:true}).isChecked(),true)}
       await page.locator('#description').fill('a\u0301\r\n👩🏽‍💻');
       assert.equal(await page.locator('#description-count').innerText(),[...norm('a\u0301\r\n👩🏽‍💻')].length+'/1.000');
@@ -105,6 +117,7 @@ async function layout(page,width,route,state='empty') {
     });
     await check('INTERCEPTED success: 3/3/5, exact Unicode counts, 11 real clipboard copies',async()=>{
       await page.getByRole('button',{name:'Dùng thông tin mẫu'}).click();await generate(page);
+      await page.waitForFunction(()=>document.activeElement.id==='results-title',null,{timeout:2000});
       assert.equal(await page.locator('.result-panel .caption-card').count(),3);
       await copyAll(page,'.result-panel',output);
       for(let i=0;i<3;i++)assert.match(await page.locator('.caption-card .counts').nth(i).innerText(),new RegExp([...norm(output.captions[i])].length+' ký tự'));
@@ -117,11 +130,11 @@ async function layout(page,width,route,state='empty') {
       await page.getByRole('button',{name:'Xem lại',exact:true}).first().click();await copyAll(page,'.history-detail',output);
       for(const width of [320,390,768,1024,1440]){await page.setViewportSize({width,height:1000});await layout(page,width,'/history','intercepted-result');if([390,1440].includes(width))await shot(page,'history-result-intercepted-'+width)}
       await page.locator('.tool-links').getByRole('link',{name:/Tạo nội dung/}).click();assert.equal(await page.locator('#productName').inputValue(),'Tên mới chưa tạo');assert.equal(await page.locator('.result-panel .copy-button').count(),11);
-      await page.locator('.tool-links').getByRole('link',{name:/Lịch sử/}).click();await page.reload({waitUntil:'networkidle'});assert.equal(await saved(page),before);
+      await page.locator('.tool-links').getByRole('link',{name:/Lịch sử/}).click();await page.waitForURL(base+'/history');await page.reload({waitUntil:'networkidle'});await readyTool(page);assert.equal(await saved(page),before);
     });
     await check('Legacy guest data remains; view/delete/cancel focus affects only one item',async()=>{
       await page.evaluate(({key,oldKey,entry})=>{const s=JSON.parse(localStorage.getItem(key));s.entries.push(entry);localStorage.setItem(key,JSON.stringify(s));localStorage.setItem(oldKey,'prototype-preserved')},{key,oldKey,entry});
-      await page.reload({waitUntil:'networkidle'});assert.equal(await page.locator('.history-entry').count(),2);
+      await page.reload({waitUntil:'networkidle'});await page.getByRole('heading',{name:entry.input.productName,exact:true}).waitFor();assert.equal(await page.locator('.history-entry').count(),2);
       await page.getByRole('button',{name:'Xóa',exact:true}).first().click();await page.getByRole('button',{name:'Hủy',exact:true}).click();
       await page.waitForFunction(()=>document.activeElement.id.startsWith('delete-'));
       await page.getByRole('button',{name:'Xóa',exact:true}).first().click();await page.getByRole('button',{name:'Xóa mục này',exact:true}).click();assert.equal(await page.locator('.history-entry').count(),1);
@@ -133,6 +146,7 @@ async function layout(page,width,route,state='empty') {
       assert.equal(requests.at(-1).productName,'Sổ kiểm thử mới');assert.equal(requests.at(-1).tone,'humorous');const before=await saved(page);
       for(const [status,code] of [[502,'INVALID_AI_OUTPUT'],[504,'AI_TIMEOUT'],[429,'RATE_LIMITED'],[503,'AI_UNAVAILABLE'],[502,'UPSTREAM_ERROR'],[200,null]]){
         reply={status,body:code?{error:{code,message:'PRIVATE_UPSTREAM'}}:{captions:[]}};await generate(page,true);
+        await page.waitForFunction(()=>document.activeElement.id==='generate-error',null,{timeout:2000});
         assert.match(await page.locator('#generate-error').innerText(),/giữ nguyên/);assert.doesNotMatch(await page.locator('main').innerText(),/PRIVATE_UPSTREAM/);
         assert.equal(await saved(page),before);assert.equal(await page.locator('.result-panel .copy-button').count(),11);assert.equal(await page.locator('#productName').inputValue(),'Sổ kiểm thử mới');
       }
@@ -152,7 +166,7 @@ async function layout(page,width,route,state='empty') {
       await page.getByRole('button',{name:'Tạo lại',exact:true}).click();await page.waitForFunction(()=>document.querySelector('#productName').matches(':disabled'));
       await page.getByRole('link',{name:'Bàn biên tập — Trang chủ',exact:true}).click();await page.waitForURL(base+'/');
       const release=hold;hold=null;release.resolve();await page.waitForLoadState('networkidle');assert.equal(await saved(page),before);
-      await page.getByRole('link',{name:'Mở bàn biên tập',exact:true}).click();await page.waitForURL(base+'/create');await done(page);assert.equal(await saved(page),before);
+      await page.getByRole('link',{name:/Mở bàn biên tập/}).first().click();await page.waitForURL(base+'/create');await done(page);assert.equal(await saved(page),before);
     });
     await check('INJECTED full storage keeps new output and old history',async()=>{
       await page.getByRole('button',{name:'Dùng thông tin mẫu'}).click();const before=await saved(page);

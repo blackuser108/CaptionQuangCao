@@ -7,7 +7,7 @@ import { useAuth } from './AuthProvider';
 
 const links = [['/', 'Trang chủ'], ['/features', 'Tính năng'], ['/create', 'Tạo nội dung'], ['/history', 'Lịch sử'], ['/about', 'Về chúng tôi'], ['/login', 'Đăng nhập']] as const;
 export function Brand() {
-  return <><span className="brand-mark" aria-hidden="true"><i /><i /><i /></span>bàn biên tập.</>;
+  return <><span className="brand-mark" aria-hidden="true"><i /><i /><i /></span>Bàn biên tập</>;
 }
 export default function SiteHeader() {
   const pathname = usePathname(), menu = useRef<HTMLDetailsElement>(null);

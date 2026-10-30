@@ -1,7 +1,8 @@
 // Session API and generation doubles only: this does not prove Google OAuth success.
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
-const base = 'http://127.0.0.1:3000', out = path.resolve(__dirname, '../../evidence/auth-supabase-2026-10-27');
+const base = process.env.BASE_URL || 'http://127.0.0.1:3000', out = path.resolve(process.env.EVIDENCE_DIR || path.resolve(__dirname, '../../evidence/auth-supabase-2026-10-27'));
+assert.match(base, /^http:\/\/127\.0\.0\.1:\d+$/);
 const guestKey = 'ban-bien-tap:history:v1', A = '11111111-1111-4111-8111-111111111111', B = '22222222-2222-4222-8222-222222222222';
 const scope = id => id ? `${guestKey}:user:${id}` : guestKey;
 const output = { captions: ['MẪU KIỂM THỬ caption một', 'MẪU KIỂM THỬ caption hai', 'MẪU KIỂM THỬ caption ba'], headlines: ['MẪU Một', 'MẪU Hai', 'MẪU Ba'], hashtags: ['#Mau', '#Thu', '#Viet', '#BanNhap', '#NoiDung'] };

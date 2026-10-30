@@ -1,6 +1,8 @@
 # CaptionQuangCao
 Agent tự động Viết Caption Quảng cáo
 
+**Tích hợp LD_UI — 30/10:** đã rà toàn nhánh ec22d80, giữ UI/ảnh/thông tin đội, sửa nạp env root và focus sau xác minh phiên; mô tả tốc độ/bảo mật/Meta được chỉnh về bằng chứng thực tế. 46test, typecheck/build,17nhóm browser và5nhóm auth giả đạt;0inference thật. Xem [LD_UI_REVIEW](LD_UI_REVIEW.md). Nhánh main là nguồn deploy thủ công trên caption-quang-cao; lượt review không deploy hoặc đổi cloud config. Các kết quả AI/Google thật ngày28/10 dưới đây là lịch sử.
+
 **Đang chạy online:** [Mở Bàn biên tập](https://caption-quang-cao.vercel.app/). Google đăng nhập/đăng xuất đã kiểm thật với chủ dự án; AI AUTO đã tạo thật3/3/5 trong khoảng4,3s bằng gemini-3.1-flash-lite. Copy và lịch sử sau reload đạt. Source runtime main1261f83; tích hợp tiếp trực tiếp main. Chưa nghiệm thu chất lượng toàn bộ/tài khoản ngoài/quota tải BTC. Xem AI_AUTO_PROGRESS.md; các mục lỗi/chờ phía dưới là lịch sử lượt tích hợp.
 
 ## Trạng thái

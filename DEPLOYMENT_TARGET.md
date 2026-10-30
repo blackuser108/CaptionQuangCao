@@ -1,5 +1,9 @@
 # Đích Vercel hiện hành — 28/10/2026
 
+## Cập nhật30/10 — merge source, người dùng tự deploy
+
+Đợt LD_UI ec22d80 tích hợp trực tiếp main sau kiểm/sửa env/focus và mô tả. Đích duy nhất vẫn là projectcaption-quang-cao/prj_OjU1NJMX1kQl5eYFuAvvBd4bvCZi. Không tạo deployment/redeploy/promote hoặc đổi env/callback trong đợt này; hai manifest giữ autodeployfalse. Chọn main và kiểm SHA mới khi tự deploy; xem LD_UI_REVIEW.md. Các ID deployment/kết quả online ngày28/10 dưới đây chỉ là lịch sử, không bằng chứng bản merge30/10 đã lên online.
+
 ## Hiện hành sau lần duyệt bổ sung
 
 Website **https://caption-quang-cao.vercel.app/** đang phục vụ source **main1261f83f1e6c531138943f2c9b508b381e0f9f81**, deployment **dpl_B4CW5RjiQRnPHieGSywnaYLEdSJY**, READY/production. Người dùng duyệt thêm1Redeploy sau lần đầu; đã thực hiện tổng2lần có duyệt riêng, không tự vượt giới hạn.
