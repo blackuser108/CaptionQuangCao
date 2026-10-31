@@ -102,8 +102,27 @@ export default function CreateScreen({ aiUnavailable = false }: { aiUnavailable?
               onClick={generate}
               disabled={busy}
             >
-              {busy ? 'Đang tạo…' : current ? 'Tạo lại' : 'Tạo nội dung'}{' '}
-              <span aria-hidden="true">↗</span>
+              {busy ? (
+                <>
+                  <img
+                    src="/loading.svg"
+                    alt=""
+                    width={20}
+                    height={20}
+                    className="btn-spinner"
+                    aria-hidden="true"
+                  />
+                  <span>Đang tạo…</span>
+                </>
+              ) : current ? (
+                <>
+                  Tạo lại <span aria-hidden="true">↗</span>
+                </>
+              ) : (
+                <>
+                  Tạo nội dung <span aria-hidden="true">↗</span>
+                </>
+              )}
             </button>
           </fieldset>
 
@@ -138,6 +157,24 @@ export default function CreateScreen({ aiUnavailable = false }: { aiUnavailable?
           <div aria-busy={busy}>
             {current ? (
               <>
+                {busy && (
+                  <div className="ai-regenerating-banner panel" role="status">
+                    <img
+                      src="/loading.svg"
+                      alt=""
+                      width={48}
+                      height={48}
+                      className="ai-loading-mini"
+                      aria-hidden="true"
+                    />
+                    <div>
+                      <strong>AI đang biên soạn bộ bản nháp mới…</strong>
+                      <p className="small muted">
+                        Bạn vẫn có thể copy và đọc bản hiện tại bên dưới trong khi chờ kết quả mới.
+                      </p>
+                    </div>
+                  </div>
+                )}
                 <div className="sample-caption">
                   <span className="sample-label">BẢN NHÁP AI · {current.input.productName}</span>
                   <p className="small muted">Kiểm tra dữ kiện, tiếng Việt và hashtag trước khi dùng.</p>
@@ -147,6 +184,25 @@ export default function CreateScreen({ aiUnavailable = false }: { aiUnavailable?
                 </div>
                 <ContentSet key={current.id} output={current.output} />
               </>
+            ) : busy ? (
+              <div className="empty-result panel ai-loading-card">
+                <img
+                  src="/loading.svg"
+                  alt="AI đang viết bản nháp"
+                  width={96}
+                  height={96}
+                  className="ai-loading-graphic"
+                />
+                <h3>AI đang viết bản nháp…</h3>
+                <p className="muted">
+                  Đang phân tích dữ kiện và chuẩn bị 3 caption, 3 headline và 5 hashtag. Bạn có thể tiếp tục khi có kết quả.
+                </p>
+                <div className="ai-loading-steps">
+                  <span className="ai-loading-pill">✦ Chuẩn bị góc tiếp cận</span>
+                  <span className="ai-loading-pill">✦ Áp dụng tông giọng</span>
+                  <span className="ai-loading-pill">✦ Tinh chỉnh tiếng Việt</span>
+                </div>
+              </div>
             ) : (
               <div className="empty-result panel">
                 <span className="empty-mark" aria-hidden="true">

@@ -1387,6 +1387,82 @@ fieldset.caption-tone-bar {
   }
 }
 
+/* AI Loading Graphic & States */
+.ai-loading-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 48px 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  animation: fadeIn 0.25s ease-out;
+}
+.ai-loading-graphic {
+  width: 96px;
+  height: 96px;
+  margin-bottom: 20px;
+  display: block;
+}
+.ai-loading-card h3 {
+  font-family: var(--serif);
+  font-size: 26px;
+  font-weight: 500;
+  margin-bottom: 8px;
+  color: var(--ink);
+}
+.ai-loading-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 24px;
+}
+.ai-loading-pill {
+  display: inline-flex;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 550;
+  color: var(--muted);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  padding: 6px 14px;
+  border-radius: 999px;
+}
+.ai-regenerating-banner {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  background: #fff8f4;
+  border: 1px solid #ffd5c2;
+  border-radius: var(--radius);
+  box-shadow: 0 1px 4px rgba(255, 98, 31, 0.06);
+  animation: fadeIn 0.25s ease-out;
+}
+.ai-loading-mini {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  display: block;
+}
+.ai-regenerating-banner strong {
+  display: block;
+  font-size: 15px;
+  color: var(--ink);
+  margin-bottom: 2px;
+}
+.btn-spinner {
+  width: 20px;
+  height: 20px;
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
 
 /* Modern Responsive Capsule Pill Header & Mobile Menu Animations */
 .site-header {
