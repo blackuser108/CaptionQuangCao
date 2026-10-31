@@ -312,16 +312,12 @@ export default function Page() {
             <img src="/image/authorAvatar/Puc.jpg" alt="Púc" className="avatar-bubble" />
             <img src="/image/authorAvatar/huy.jpg" alt="Gia Huy" className="avatar-bubble" />
             <img src="/image/authorAvatar/dat.jpg" alt="Đạt" className="avatar-bubble" />
-            <img src="/image/creator-work.jpg" alt="Creator" className="avatar-bubble" />
           </div>
           <h2 className="social-proof-heading">
             Đồng hành cùng các nhà sáng tạo nội dung &amp; chủ shop kinh doanh
           </h2>
 
           <div className="testimonial-card">
-            <div className="testimonial-stars">
-              Ví dụ minh họa · Chưa xác minh phản hồi
-            </div>
             <p className="testimonial-quote">
               &quot;Trước đây mỗi lần viết bài bán hàng là mình mất cả buổi sáng ngồi cắn bút. Từ khi dùng Bàn biên tập, chỉ cần nhập đúng tính năng và đối tượng, AI cho ra 3 góc viết rất trúng tâm lý, tiêu đề giật tít tự nhiên và không hề bị sáo rỗng!&quot;
             </p>

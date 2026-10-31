@@ -30,7 +30,7 @@ export default function SiteFooter() {
                 </span>
                 <div>
                   <span className="contact-label">Phụ trách:</span>
-                  <strong className="contact-value">Hoàng Long</strong>
+                  <strong className="contact-value">Phan Hoàng Long</strong>
                 </div>
               </li>
               <li>
@@ -54,21 +54,6 @@ export default function SiteFooter() {
                 <div>
                   <span className="contact-label">Hotline / Zalo:</span>
                   <a href="tel:0934865593" className="contact-link">0934865593</a>
-                </div>
-              </li>
-              <li>
-                <span className="contact-icon" aria-hidden="true">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <rect width="18" height="18" x="3" y="4" rx="2" ry="2"></rect>
-                    <line x1="16" x2="16" y1="2" y2="6"></line>
-                    <line x1="8" x2="8" y1="2" y2="6"></line>
-                    <line x1="3" x2="21" y1="10" y2="10"></line>
-                    <path d="m9 16 2 2 4-4"></path>
-                  </svg>
-                </span>
-                <div>
-                  <span className="contact-label">Ngày sinh:</span>
-                  <span className="contact-value">14/01</span>
                 </div>
               </li>
             </ul>
