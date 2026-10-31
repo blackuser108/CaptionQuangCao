@@ -59,6 +59,54 @@ export default function CreateScreen({ aiUnavailable = false }: { aiUnavailable?
       <div className="editor-grid">
         <ProductForm input={input} onChange={setInput} busy={busy} errors={errors} onBlur={onBlur} onSubmit={generate} />
         <section className="result-panel" aria-labelledby="results-title">
+          <fieldset
+            className="caption-tone-bar result-top-bar"
+            id="tone"
+            tabIndex={-1}
+            aria-invalid={!!errors.tone}
+            aria-describedby={errors.tone ? 'tone-error' : undefined}
+          >
+            <legend className="sr-only">Tông giọng và tạo nội dung</legend>
+            <div className="caption-tone-left">
+              <span className="caption-tone-label">
+                Tông giọng <span aria-hidden="true">*</span>:
+              </span>
+              <div className="caption-tone-pills" role="radiogroup" aria-label="Chọn tông giọng">
+                {(Object.entries(tones) as [keyof typeof tones, string][]).map(([val, label]) => (
+                  <label
+                    key={val}
+                    className={`tone-pill-btn ${input.tone === val ? 'active' : ''}`}
+                  >
+                    <input
+                      type="radio"
+                      name="tone"
+                      value={val}
+                      checked={input.tone === val}
+                      disabled={busy}
+                      aria-invalid={!!errors.tone}
+                      onChange={() => setInput({ ...input, tone: val })}
+                    />
+                    <span>{label}</span>
+                  </label>
+                ))}
+              </div>
+              {errors.tone && (
+                <p className="field-error" id="tone-error">
+                  {errors.tone}
+                </p>
+              )}
+            </div>
+            <button
+              type="button"
+              className="button primary tone-generate-button"
+              onClick={generate}
+              disabled={busy}
+            >
+              {busy ? 'Đang tạo…' : current ? 'Tạo lại' : 'Tạo nội dung'}{' '}
+              <span aria-hidden="true">↗</span>
+            </button>
+          </fieldset>
+
           <div className="section-heading result-heading">
             <div>
               <h2 id="results-title" tabIndex={-1}>
@@ -96,33 +144,6 @@ export default function CreateScreen({ aiUnavailable = false }: { aiUnavailable?
                   <p className={`small ${saveError ? 'notice warning' : 'saved-status'}`} role="status">
                     {saveError || 'Đã lưu vào lịch sử trên máy này.'}
                   </p>
-                </div>
-                <div className="caption-tone-bar">
-                  <div className="caption-tone-left">
-                    <span className="caption-tone-label">Tông giọng:</span>
-                    <div className="caption-tone-pills" role="group" aria-label="Đổi tông giọng">
-                      {(Object.entries(tones) as [keyof typeof tones, string][]).map(([val, label]) => (
-                        <button
-                          key={val}
-                          type="button"
-                          className={`tone-pill-btn ${input.tone === val ? 'active' : ''}`}
-                          onClick={() => setInput({ ...input, tone: val })}
-                          disabled={busy}
-                        >
-                          <span className="tone-pill-dot" aria-hidden="true" />
-                          {label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    className="button primary tone-generate-button"
-                    onClick={generate}
-                    disabled={busy || !current}
-                  >
-                    {busy ? 'Đang tạo…' : 'Tạo lại'} <span aria-hidden="true">↗</span>
-                  </button>
                 </div>
                 <ContentSet key={current.id} output={current.output} />
               </>
