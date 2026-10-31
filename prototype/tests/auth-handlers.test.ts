@@ -4,7 +4,7 @@ import { createAuthHandlers } from '../lib/auth/handlers.ts';
 import { requestContext } from '../lib/auth/supabase.ts';
 
 const id = '11111111-1111-4111-8111-111111111111';
-const settings = { origin: 'http://127.0.0.1:3000', url: 'https://abcdefghijklmnopqrst.supabase.co', key: 'sb_publishable_test', googleEnabled: true };
+const settings = { origin: 'http://127.0.0.1:3000', url: 'https://abcdefghijklmnopqrst.supabase.co', key: 'sb_publishable_test', googleEnabled: true, emailEnabled: true };
 const req = (path: string, body?: string, origin = settings.origin) => new Request(settings.origin + path, { method: body === undefined ? 'GET' : 'POST', headers: { origin, 'content-type': 'application/x-www-form-urlencoded', cookie: 'bbt-auth=test-cookie' }, body });
 function setup(change = {}, configured = true) {
   const calls: string[] = [];
