@@ -119,7 +119,15 @@ function useWorkbenchState(scopeKey: string, auth: ReturnType<typeof useAuth>) {
 const WorkbenchContext = createContext<ReturnType<typeof useWorkbenchState> | null>(null);
 function ScopedWorkbench({ children, scopeKey, auth }: { children: React.ReactNode; scopeKey: string; auth: ReturnType<typeof useAuth> }) {
   const state = useWorkbenchState(scopeKey, auth);
-  return <WorkbenchContext.Provider value={state}>{auth.phase === 'ready' ? <div data-auth-private>{children}</div> : <IdentityNotice />}</WorkbenchContext.Provider>;
+  return (
+    <WorkbenchContext.Provider value={state}>
+      {auth.phase === 'error' ? (
+        <IdentityNotice />
+      ) : (
+        <div data-auth-private>{children}</div>
+      )}
+    </WorkbenchContext.Provider>
+  );
 }
 export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
   const auth = useAuth();

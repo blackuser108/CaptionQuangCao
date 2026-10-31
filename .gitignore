@@ -28,3 +28,6 @@ test-results/
 storage-state*.json
 *cookies*.json
 .env
+
+.agent/
+.agents/

@@ -11,17 +11,22 @@ function useIdentity() {
   const pathname = usePathname(), [snapshot, setSnapshot] = useState(initial);
   const fence = useRef(new IdentityFence()).current;
   const serial = useRef(0), pending = useRef<AbortController | null>(null), dirty = useRef(false), channel = useRef<BroadcastChannel | null>(null);
+  const lastCheck = useRef(0);
   const confirmDiscard = useCallback(() => !dirty.current || window.confirm('Chuyển trang hoặc tài khoản sẽ bỏ bản đang nhập và hủy yêu cầu chưa xong. Lịch sử đã lưu vẫn còn. Tiếp tục?'), []);
   const markDirty = useCallback((value: boolean) => { dirty.current = value; }, []);
   const announce = useCallback(() => {
     if (channel.current) channel.current.postMessage('recheck');
     else { try { localStorage.setItem('ban-bien-tap:auth-change', crypto.randomUUID()); } catch { /* Tín hiệu không phải bằng chứng danh tính. */ } }
   }, []);
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (options?: { silent?: boolean }) => {
     const seq = ++serial.current;
-    document.documentElement.dataset.authHidden = 'true';
+    const isSilent = options?.silent === true;
+    if (!isSilent) {
+      document.documentElement.dataset.authHidden = 'true';
+      fence.suspend();
+      setSnapshot(previous => ({ ...previous, phase: 'checking' }));
+    }
     pending.current?.abort(); const controller = new AbortController(); pending.current = controller;
-    fence.suspend(); setSnapshot(previous => ({ ...previous, phase: 'checking' }));
     try {
       const response = await fetch('/api/auth/session', { cache: 'no-store', signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]) });
       const data = await response.json();
@@ -39,10 +44,17 @@ function useIdentity() {
   }, [announce, fence]);
   useEffect(() => { void refresh().catch(() => {}); }, [pathname, refresh]);
   useEffect(() => {
-    const check = () => { if (document.visibilityState === 'visible') void refresh().catch(() => {}); };
+    const now = () => Date.now();
+    const check = (silent = true) => {
+      if (document.visibilityState === 'visible') {
+        if (silent && now() - lastCheck.current < 5000) return;
+        lastCheck.current = now();
+        void refresh({ silent }).catch(() => {});
+      }
+    };
     const hide = () => { document.documentElement.dataset.authHidden = 'true'; fence.suspend(); setSnapshot(previous => ({ ...previous, phase: 'checking' })); };
-    const changed = () => { hide(); check(); };
-    const visibility = () => { if (document.visibilityState === 'hidden') hide(); else check(); };
+    const changed = () => { hide(); check(false); };
+    const visibility = () => { if (document.visibilityState === 'hidden') hide(); else check(false); };
     const storage = (event: StorageEvent) => { if (event.key === 'ban-bien-tap:auth-change') changed(); };
     const leaving = (event: MouseEvent) => {
       const anchor = (event.target as HTMLElement).closest?.('a[href]');
@@ -53,10 +65,11 @@ function useIdentity() {
     };
     const unload = (event: BeforeUnloadEvent) => { if (dirty.current) { event.preventDefault(); event.returnValue = ''; } };
     if ('BroadcastChannel' in window) { channel.current = new BroadcastChannel('ban-bien-tap:auth'); channel.current.onmessage = changed; }
-    window.addEventListener('focus', check); window.addEventListener('pageshow', check); window.addEventListener('pagehide', hide); window.addEventListener('storage', storage);
+    const onFocus = () => check(true);
+    window.addEventListener('focus', onFocus); window.addEventListener('pageshow', () => check(false)); window.addEventListener('pagehide', hide); window.addEventListener('storage', storage);
     document.addEventListener('visibilitychange', visibility); document.addEventListener('click', leaving, true); window.addEventListener('beforeunload', unload);
-    const timer = setInterval(check, 30000);
-    return () => { clearInterval(timer); pending.current?.abort(); channel.current?.close(); channel.current = null; window.removeEventListener('focus', check); window.removeEventListener('pageshow', check); window.removeEventListener('pagehide', hide); window.removeEventListener('storage', storage); document.removeEventListener('visibilitychange', visibility); document.removeEventListener('click', leaving, true); window.removeEventListener('beforeunload', unload); };
+    const timer = setInterval(() => check(true), 30000);
+    return () => { clearInterval(timer); pending.current?.abort(); channel.current?.close(); channel.current = null; window.removeEventListener('focus', onFocus); window.removeEventListener('pageshow', () => check(false)); window.removeEventListener('pagehide', hide); window.removeEventListener('storage', storage); document.removeEventListener('visibilitychange', visibility); document.removeEventListener('click', leaving, true); window.removeEventListener('beforeunload', unload); };
   }, [confirmDiscard, fence, refresh]);
   const phase = snapshot.phase === 'ready' && snapshot.path !== pathname ? 'checking' : snapshot.phase;
   useEffect(() => { if (phase === 'ready') delete document.documentElement.dataset.authHidden; else document.documentElement.dataset.authHidden = 'true'; }, [phase]);

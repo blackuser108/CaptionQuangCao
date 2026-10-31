@@ -12,7 +12,7 @@ export default function SiteFooter() {
               <Brand />
             </Link>
             <p className="footer-tagline">
-              Agent AI hỗ trợ viết caption, giật headline và tạo hashtag tối ưu cho bài đăng Facebook & Instagram từ dữ kiện sản phẩm thật.
+              Agent AI hỗ trợ viết caption, giật headline và tạo hashtag tối ưu cho bài đăng Facebook &amp; Instagram từ dữ kiện sản phẩm thật.
             </p>
             <div className="footer-badges">
               <span className="footer-badge">⚡ Bộ bản nháp 3 / 3 / 5</span>
@@ -26,11 +26,11 @@ export default function SiteFooter() {
             <ul className="footer-contact-list">
               <li>
                 <span className="contact-icon" aria-hidden="true" style={{ overflow: 'hidden', padding: 0 }}>
-                  <img src="/image/authorAvatar/Puc.jpg" alt="Púc" width="32" height="32" style={{ objectFit: 'cover', width: '100%', height: '100%', borderRadius: 8 }} />
+                  <img src="/image/authorAvatar/Long.jpg" alt="Hoàng Long" width="32" height="32" style={{ objectFit: 'cover', width: '100%', height: '100%', borderRadius: 8 }} />
                 </span>
                 <div>
                   <span className="contact-label">Phụ trách:</span>
-                  <strong className="contact-value">Púc</strong>
+                  <strong className="contact-value">Hoàng Long</strong>
                 </div>
               </li>
               <li>
@@ -42,7 +42,7 @@ export default function SiteFooter() {
                 </span>
                 <div>
                   <span className="contact-label">Email:</span>
-                  <a href="mailto:ledinhphuc1408@gmail.com" className="contact-link">ledinhphuc1408@gmail.com</a>
+                  <a href="mailto:longph140108@gmail.com" className="contact-link">longph140108@gmail.com</a>
                 </div>
               </li>
               <li>
@@ -68,7 +68,7 @@ export default function SiteFooter() {
                 </span>
                 <div>
                   <span className="contact-label">Ngày sinh:</span>
-                  <span className="contact-value">14/08</span>
+                  <span className="contact-value">14/01</span>
                 </div>
               </li>
             </ul>
@@ -110,12 +110,12 @@ export default function SiteFooter() {
         {/* Footer Bottom Bar */}
         <div className="footer-bottom">
           <div className="footer-bottom-copy">
-            <p>Bản nháp cho Feed Facebook & Instagram. Luôn kiểm tra nội dung trước khi đăng.</p>
+            <p>Bản nháp cho Feed Facebook &amp; Instagram. Luôn kiểm tra nội dung trước khi đăng.</p>
             <p className="footer-note">Lịch sử chỉ lưu trên trình duyệt này, không mã hóa hoặc đồng bộ thiết bị.</p>
           </div>
           <div className="footer-credit">
             <span>© 2026 Bàn biên tập.</span>
-            <span>Phát triển bởi <strong>Team AIT1-HUST</strong> · Púc (14/08)</span>
+            <span>Phát triển bởi <strong>Team AIT1-HUST</strong> · Hoàng Long (14/01)</span>
           </div>
         </div>
       </div>
