@@ -55,3 +55,13 @@ node tests/v2-visual.cjs --out=../../evidence/online-check
 ```
 
 Preview3000 phải đang chạy. Harness dùng browser context riêng; mọi generation bị interception, **không inference thật**, không gọi Google OAuth thật. Auth browser dùng session API doubles, không thay kiểm tài khoản ngoài. Kết quả/ảnh vào evidence bị gitignore; không chạy bằng profile cá nhân. Chưa kiểm thiết bị thật/screen reader/zoom native hoặc bảo đảm uptime/quota dài hạn.
+
+## Nhánh email/password của Gia Huy — 31/10/2026
+
+Thêm đăng nhập email/mật khẩu và đăng ký tối giản qua Supabase Auth, giữ Google OAuth và chế độ khách. Endpoint mới `/auth/password`, cờ riêng `AUTH_EMAIL_ENABLED` (mặc định bật khi có cấu hình auth). Mật khẩu do Supabase Auth quản lý; không cần bảng SQL credential. Xem [AUTH_HANDOFF.md](AUTH_HANDOFF.md) để biết tiến độ, kiểm thử và giới hạn; phần này chưa được triển khai production.
+
+Đặt env theo `.env.example` trong `prototype/.env.local` (gitignored). Email provider phải bật trong đúng project nhóm; giữ Confirm email và cấu hình Site URL/redirect allowlist cho `/auth/callback` ở origin local/production tương ứng. Không thay Google callback của Supabase. Nếu không nhận được email, kiểm tra cấu hình gửi email/SMTP và quota; không tắt xác nhận để che lỗi. Signup trả thông báo trung tính để tránh tiết lộ email tồn tại. Chưa có UI khôi phục mật khẩu; người đã đăng nhập chỉ bằng Google tiếp tục dùng Google, không nhập mật khẩu Google vào form email.
+
+`loginEnabled` trong session API vẫn chỉ Google để tương thích; `emailEnabled` là cờ mới độc lập. Cả hai không phản ánh quota/khả dụng thời gian thực của nhà cung cấp. Lịch sử vẫn là localStorage, không đồng bộ cloud. Logout kết thúc phiên trên trình duyệt này (`scope: local`). Supabase áp dụng giới hạn Auth; app chưa có rate limiter phân tán riêng.
+
+Để chạy browser QA không tác động cloud: sau `pnpm build`, từ `prototype/` chạy server bằng Node với `--import ./tests/auth-preview-fixture.mjs`, `AUTH_TEST_FIXTURE=local-only`, `AUTH_SITE_URL=http://127.0.0.1:3101`, `SUPABASE_URL=https://abcdefghijklmnopqrst.supabase.co`, `SUPABASE_PUBLISHABLE_KEY=sb_publishable_test`, `AUTH_GOOGLE_ENABLED=false`, rồi `node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port 3101`. Fixture chặn network ngoài, chỉ mô phỏng Auth. Password giả dùng trong fixture là `Fixture-pass-123`, email `.test`; tuyệt đối không dùng fixture để deploy.

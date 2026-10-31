@@ -5,8 +5,8 @@ import { usePathname } from 'next/navigation';
 import { IdentityFence, validUserId } from '../lib/auth/core';
 
 type User = { id: string; email: string | null };
-type Snapshot = { phase: 'checking' | 'ready' | 'error'; user: User | null; configured: boolean; loginEnabled: boolean; path: string };
-const initial: Snapshot = { phase: 'checking', user: null, configured: false, loginEnabled: false, path: '' };
+type Snapshot = { phase: 'checking' | 'ready' | 'error'; user: User | null; configured: boolean; loginEnabled: boolean; emailEnabled: boolean; path: string };
+const initial: Snapshot = { phase: 'checking', user: null, configured: false, loginEnabled: false, emailEnabled: false, path: '' };
 function useIdentity() {
   const pathname = usePathname(), [snapshot, setSnapshot] = useState(initial);
   const fence = useRef(new IdentityFence()).current;
@@ -29,7 +29,7 @@ function useIdentity() {
       if (seq !== serial.current) throw new Error('SUPERSEDED');
       const user: User | null = data.status === 'guest' ? null : { id: data.user.id, email: data.user.email };
       const previous = fence.revision; fence.verify(user?.id || null);
-      setSnapshot({ phase: 'ready', user, configured: data.configured === true, loginEnabled: data.loginEnabled === true, path: window.location.pathname });
+      setSnapshot({ phase: 'ready', user, configured: data.configured === true, loginEnabled: data.loginEnabled === true, emailEnabled: data.emailEnabled === true, path: window.location.pathname });
       if (previous !== fence.revision) announce();
       return fence.capture();
     } catch (error) {

@@ -1256,3 +1256,15 @@ html[data-auth-hidden] [data-auth-private] { visibility: hidden; }
     padding: 14px 10px;
   }
 }
+
+/* Email auth follows the existing login card; Google and guest remain available. */
+.password-auth { margin-top: 24px; }
+.password-auth .input-fields { gap: 14px; margin: 0 0 12px; }
+.password-auth label { display: grid; gap: 8px; font-size: 14px; font-weight: 600; }
+.password-auth .password-toggle, .password-auth .password-switch { background: transparent; border: 0; text-decoration: underline; text-underline-offset: 4px; min-height: 44px; font-size: 14px; padding: 8px 0; text-align: left; }
+.password-auth .password-toggle { justify-self: end; margin-top: -8px; }
+.password-auth .button { margin-top: 14px; }
+.auth-feedback { font-size: 14px; line-height: 1.6; margin-top: 14px; overflow-wrap: anywhere; }
+.auth-feedback:empty { margin: 0; }
+.auth-feedback[role=alert] { color: #9c3025; }
+.password-auth + .separator + form .google-button { margin-top: 0; }

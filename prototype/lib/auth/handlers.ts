@@ -1,6 +1,7 @@
 import { authSettings, safeNext, sameOrigin } from './core.ts';
 import { authCookie, privateHeaders, requestContext, verifiedUser } from './supabase.ts';
 import type { Settings, AuthContext } from './supabase.ts';
+import { readPasswordInput, passwordFailure } from './password.ts';
 
 const failure = (status: number, code: string) => Response.json({ error: { code, message: 'Chưa xác minh được đăng nhập. Hãy thử lại hoặc chủ động chuyển về chế độ khách.' } }, { status, headers: privateHeaders() });
 const redirect = (url: string, headers: Headers) => { headers.set('Location', url); return new Response(null, { status: 303, headers }); };
@@ -27,11 +28,11 @@ export function createAuthHandlers({ settings = () => authSettings(process.env),
       const config = settings();
       if (!config) {
         if (request.headers.get('cookie')?.split(';').some(c => authCookie(c.trim().split('=')[0]))) return failure(503, 'AUTH_NOT_CONFIGURED');
-        return Response.json({ status: 'guest', user: null, configured: false, loginEnabled: false }, { headers: privateHeaders() });
+        return Response.json({ status: 'guest', user: null, configured: false, loginEnabled: false, emailEnabled: false }, { headers: privateHeaders() });
       }
       const ctx = context(request, config);
-      if (!ctx.hasSession) return Response.json({ status: 'guest', user: null, configured: true, loginEnabled: config.googleEnabled }, { headers: ctx.headers });
-      try { return Response.json({ status: 'authenticated', user: await verifiedUser(ctx.client), configured: true, loginEnabled: config.googleEnabled }, { headers: ctx.headers }); }
+      if (!ctx.hasSession) return Response.json({ status: 'guest', user: null, configured: true, loginEnabled: config.googleEnabled, emailEnabled: config.emailEnabled !== false }, { headers: ctx.headers });
+      try { return Response.json({ status: 'authenticated', user: await verifiedUser(ctx.client), configured: true, loginEnabled: config.googleEnabled, emailEnabled: config.emailEnabled !== false }, { headers: ctx.headers }); }
       catch { return failure(401, 'SESSION_UNVERIFIED'); }
     },
     async login(request: Request) {
@@ -46,6 +47,28 @@ export function createAuthHandlers({ settings = () => authSettings(process.env),
         if (error || !data.url || new URL(data.url).origin !== config.url) return redirect(`${config.origin}/login?error=configuration`, ctx.headers);
         return redirect(data.url, ctx.headers);
       } catch { return redirect(`${config.origin}/login?error=configuration`, ctx.headers); }
+    },
+    async password(request: Request) {
+      const config = settings();
+      if (!config || config.emailEnabled === false) return passwordFailure(503, 'AUTH_NOT_CONFIGURED');
+      if (!sameOrigin(request, config.origin)) return passwordFailure(403, 'INVALID_ORIGIN');
+      let input;
+      try { input = await readPasswordInput(request); }
+      catch { return passwordFailure(422, 'INVALID_INPUT'); }
+      const ctx = context(request, config);
+      try {
+        if (input.mode === 'signup') {
+          const { data, error } = await ctx.client.auth.signUp({ email: input.email, password: input.password, options: { emailRedirectTo: `${config.origin}/auth/callback?next=${encodeURIComponent(input.next)}` } });
+          if (error) { ctx.clear(); return passwordFailure(error.status === 429 ? 429 : 400, error.status === 429 ? 'RATE_LIMITED' : 'SIGNUP_FAILED', ctx.headers); }
+          // Existing users and new users awaiting confirmation get the same response.
+          if (!data.session) return Response.json({ status: 'confirmation_required', message: 'Nếu địa chỉ đủ điều kiện đăng ký, hãy kiểm tra email xác nhận (cả thư rác). Nếu đã có tài khoản, hãy đăng nhập.' }, { headers: ctx.headers });
+        } else {
+          const { error } = await ctx.client.auth.signInWithPassword({ email: input.email, password: input.password });
+          if (error) { ctx.clear(); return passwordFailure(error.status === 429 ? 429 : 401, error.status === 429 ? 'RATE_LIMITED' : 'INVALID_CREDENTIALS', ctx.headers); }
+        }
+        await verifiedUser(ctx.client);
+        return Response.json({ status: 'authenticated', next: input.next }, { headers: ctx.headers });
+      } catch { ctx.clear(); return passwordFailure(503, 'AUTH_UNAVAILABLE', ctx.headers); }
     },
     async callback(request: Request) {
       const config = settings();

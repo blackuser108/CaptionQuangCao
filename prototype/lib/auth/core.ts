@@ -13,7 +13,7 @@ export function authSettings(env: Record<string, string | undefined>) {
     const key = env.SUPABASE_PUBLISHABLE_KEY || '';
     if (!/^sb_publishable_[A-Za-z0-9_-]+$/.test(key) || url.protocol !== 'https:' || !/^[a-z0-9]{20}\.supabase\.co$/.test(url.hostname) || url.href !== `${url.origin}/` ||
       site.username || site.password || site.pathname !== '/' || site.search || site.hash || (site.protocol !== 'https:' && !(site.protocol === 'http:' && ['127.0.0.1', 'localhost'].includes(site.hostname)))) return null;
-    return { origin: site.origin, url: url.origin, key, googleEnabled: env.AUTH_GOOGLE_ENABLED === 'true' };
+    return { origin: site.origin, url: url.origin, key, googleEnabled: env.AUTH_GOOGLE_ENABLED === 'true', emailEnabled: env.AUTH_EMAIL_ENABLED !== 'false' };
   } catch { return null; }
 }
 export function sameOrigin(request: Request, origin: string) { return request.headers.get('origin') === origin && request.headers.get('sec-fetch-site') !== 'cross-site'; }

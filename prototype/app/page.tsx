@@ -385,7 +385,7 @@ export default function Page() {
             <details open>
               <summary>Tôi có cần đăng nhập không?</summary>
               <p>
-                Không. Bạn vẫn có thể tạo nội dung, copy, tạo lại, dùng lịch sử trên máy và xem bộ đếm. Google là lựa chọn bổ sung khi được cấu hình; chế độ khách không cần tài khoản.
+                Không. Bạn vẫn có thể tạo nội dung, copy, tạo lại, dùng lịch sử trên máy và xem bộ đếm. Email/mật khẩu và Google là lựa chọn bổ sung khi được cấu hình; chế độ khách không cần tài khoản.
               </p>
             </details>
 
