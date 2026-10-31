@@ -152,6 +152,7 @@ export default function SiteHeader() {
         <details
           className="mobile-menu"
           ref={menu}
+          suppressHydrationWarning
           onKeyDown={(event) => {
             if (event.key === 'Escape' && menu.current?.open) {
               closeMenu();

@@ -41,7 +41,11 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="vi" className={`${editorial.variable} ${headline.variable} ${sans.variable}`}>
+    <html
+      lang="vi"
+      className={`${editorial.variable} ${headline.variable} ${sans.variable}`}
+      data-scroll-behavior="smooth"
+    >
       <body>
         <AuthProvider>
           <a className="skip" href="#main">
