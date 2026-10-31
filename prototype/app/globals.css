@@ -190,7 +190,19 @@ button,input,textarea{font:inherit}
 button{color:inherit}
 button:disabled{cursor:not-allowed}
 a,button,summary{touch-action:manipulation}
-a:focus-visible,button:focus-visible,summary:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid var(--link);outline-offset:5px}
+a:focus-visible,button:focus-visible,summary:focus-visible{outline:3px solid var(--link);outline-offset:5px}
+input:not([type="radio"]):focus,
+textarea:focus,
+input:not([type="radio"]):focus-visible,
+textarea:focus-visible {
+  outline: none !important;
+  border-color: var(--orange) !important;
+  box-shadow: 0 0 0 3px rgba(255, 98, 31, 0.15) !important;
+}
+#tone:focus,
+#tone:focus-visible {
+  outline: none !important;
+}
 h1,h2,h3,p{margin:0}
 h1,h2,.serif{font-family:var(--serif);font-weight:400;letter-spacing:-.045em}
 h1{font-size:clamp(40px,4.8vw,68px);line-height:1.17}
@@ -1261,11 +1273,11 @@ html[data-auth-hidden] [data-auth-private] { visibility: hidden; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
+  gap: 20px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 12px 18px;
+  padding: 12px 20px;
   margin: 18px 0 24px;
   box-shadow: 0 1px 4px rgba(33, 30, 23, 0.04);
 }
@@ -1279,7 +1291,7 @@ fieldset.caption-tone-bar {
 .caption-tone-left {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
   flex-wrap: wrap;
 }
 .caption-tone-label {
@@ -1291,24 +1303,27 @@ fieldset.caption-tone-bar {
 .caption-tone-pills {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
   flex-wrap: wrap;
 }
 .tone-pill-btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   min-height: 40px;
-  padding: 6px 14px;
+  min-width: 114px;
+  padding: 6px 16px;
   border-radius: 999px;
-  border: 1px solid var(--border);
+  border: 1.5px solid var(--border);
   background: var(--paper);
   color: var(--ink);
   font-size: 13.5px;
-  font-weight: 550;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, color 0.15s ease;
   user-select: none;
+  box-sizing: border-box;
 }
 .tone-pill-btn:hover {
   border-color: var(--orange);
@@ -1319,7 +1334,7 @@ fieldset.caption-tone-bar {
   background: #ffe6db;
   border-color: var(--orange);
   color: var(--link);
-  font-weight: 700;
+  font-weight: 600;
   box-shadow: 0 1px 3px rgba(255, 98, 31, 0.15);
 }
 .tone-pill-btn input[type="radio"] {
@@ -1328,6 +1343,7 @@ fieldset.caption-tone-bar {
   margin: 0;
   width: 15px;
   height: 15px;
+  flex-shrink: 0;
 }
 .tone-pill-btn:has(input:focus-visible) {
   outline: 2px solid var(--orange);
@@ -1339,6 +1355,7 @@ fieldset.caption-tone-bar {
   font-size: 14.5px;
   font-weight: 650;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 @media (max-width: 768px) {
   .caption-tone-bar {
