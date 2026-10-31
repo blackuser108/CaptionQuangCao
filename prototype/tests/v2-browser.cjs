@@ -157,6 +157,7 @@ async function layout(page,width,route,state='empty') {
       await page.getByRole('button',{name:'Tạo lại',exact:true}).click();await page.waitForFunction(()=>document.querySelector('#productName').matches(':disabled'));
       await page.locator('form').evaluate(f=>f.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
       await page.locator('.tool-links').getByRole('link',{name:/Lịch sử/}).click();await page.waitForURL(base+'/history');
+      await page.getByText(/Yêu cầu vẫn tiếp tục khi bạn xem lịch sử/).waitFor();
       assert.match(await page.locator('.busy-status').innerText(),/vẫn tiếp tục/);const release=hold;hold=null;release.resolve();
       await page.waitForFunction(()=>!document.querySelector('.busy-status')?.textContent);assert.equal(requests.length,before+1);
       await page.locator('.tool-links').getByRole('link',{name:/Tạo nội dung/}).click();await done(page);assert.equal(await page.locator('.result-panel .copy-button').count(),11);

@@ -47,6 +47,10 @@ function useWorkbenchState(scopeKey: string, auth: ReturnType<typeof useAuth>) {
   }, [current, auth.phase]);
 
   useEffect(() => {
+    if (auth.phase === 'ready' && generateError) focusRegion('generate-error');
+  }, [generateError, auth.phase]);
+
+  useEffect(() => {
     if (auth.phase !== 'ready') return;
     try { setEntries(readHistory(localStorage, scopeKey)); setHistoryError(''); }
     catch (error) { setHistoryError(storageMessage(error)); }
@@ -97,7 +101,6 @@ function useWorkbenchState(scopeKey: string, auth: ReturnType<typeof useAuth>) {
       if (controller.signal.aborted || !auth.fence.current(lease)) return;
       const known = error instanceof Error && Object.values(generationErrors).includes(error.message);
       setGenerateError(`${known ? error.message : error instanceof DOMException && error.name === 'TimeoutError' ? generationErrors.AI_TIMEOUT : 'Chưa tạo được nội dung. Kiểm tra kết nối rồi thử lại.'} Form và bản nháp cũ được giữ nguyên.`);
-      focusRegion('generate-error');
     } finally {
       if (pending.current === controller) {
         pending.current = null; inFlight.current = false; setBusy(false);
