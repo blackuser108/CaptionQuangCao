@@ -22,7 +22,7 @@ export function Brand() {
         <i />
         <i />
       </span>
-      Bàn biên tập
+      <span className="brand-name">Bàn biên tập</span>
     </>
   );
 }
@@ -37,11 +37,6 @@ export default function SiteHeader() {
       : auth.phase === 'ready'
         ? ['/login', 'Đăng nhập']
         : ['/account', 'Kiểm tra phiên…'];
-  const navLink = ([href, label]: readonly [string, string]) => (
-    <Link key={href} href={href} aria-current={pathname === href ? 'page' : undefined}>
-      {label}
-    </Link>
-  );
 
   function closeMenu() {
     if (menu.current) menu.current.open = false;
@@ -67,19 +62,87 @@ export default function SiteHeader() {
         <Link className="brand" href="/" aria-label="Bàn biên tập — Trang chủ">
           <Brand />
         </Link>
-        <nav className="nav-links" aria-label="Điều hướng chính">
-          {(
-            [
-              ['/features', 'Tính năng'],
-              ['/about', 'Về chúng tôi'],
-              ['/history', 'Lịch sử'],
-            ] as const
-          ).map(navLink)}
+        <nav className="nav-links nav-pill-group" aria-label="Điều hướng chính">
+          <Link href="/" aria-current={pathname === '/' ? 'page' : undefined}>
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+              <polyline points="9 22 9 12 15 12 15 22" />
+            </svg>
+            <span>Trang chủ</span>
+          </Link>
+          <Link href="/features" aria-current={pathname === '/features' ? 'page' : undefined}>
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+            </svg>
+            <span>Tính năng</span>
+          </Link>
+          <Link href="/history" aria-current={pathname === '/history' ? 'page' : undefined}>
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
+            </svg>
+            <span>Lịch sử</span>
+          </Link>
+          <Link href="/about" aria-current={pathname === '/about' ? 'page' : undefined}>
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+              <circle cx="9" cy="7" r="4" />
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+              <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+            </svg>
+            <span>Về chúng tôi</span>
+          </Link>
         </nav>
         <div className="nav-actions">
-          {navLink(accountLink)}
           <Link
-            className="button"
+            className="nav-account-btn"
+            href={accountLink[0]}
+            aria-current={pathname === accountLink[0] ? 'page' : undefined}
+          >
+            {accountLink[1]}
+          </Link>
+          <Link
+            className="button nav-cta-btn"
             href="/create"
             aria-current={pathname === '/create' ? 'page' : undefined}
           >
@@ -105,7 +168,15 @@ export default function SiteHeader() {
               if ((event.target as HTMLElement).closest('a')) closeMenu();
             }}
           >
-            {links.map((link) => navLink(link[0] === '/login' ? accountLink : link))}
+            {links.map((link) => (
+              <Link
+                key={link[0]}
+                href={link[0] === '/login' ? accountLink[0] : link[0]}
+                aria-current={pathname === link[0] ? 'page' : undefined}
+              >
+                {link[0] === '/login' ? accountLink[1] : link[1]}
+              </Link>
+            ))}
           </nav>
         </details>
       </div>
