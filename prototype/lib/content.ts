@@ -38,10 +38,11 @@ export function validate(input: Input) {
   return errors;
 }
 
-export const captionLabels = ['Giới thiệu ngắn', 'Tình huống sử dụng', 'Vấn đề và lợi ích'];
-export const targets = [[45, 90], [150, 260], [180, 280]];
+export const captionLabels = ['Hook ngắn · Lợi ích', 'Gợi mở · Nỗi bực → Giải pháp', 'Câu chuyện · Bối cảnh'];
+export const targets = [[70, 150], [220, 400], [340, 600]];
+export const instagramCaptionLimit = 2200;
 export function captionWarning(text: string, index: number) {
   const n = count(text), [min, max] = targets[index];
-  if (n > 280) return 'Caption hơi dài — vượt mốc khuyến nghị 280 ký tự.';
+  if (n > instagramCaptionLimit) return `Vượt giới hạn ${instagramCaptionLimit.toLocaleString('vi-VN')} ký tự của caption Instagram — hãy rút gọn.`;
   return n < min || n > max ? `Ngoài khoảng mục tiêu ${min}–${max} ký tự.` : '';
 }

@@ -28,7 +28,7 @@ export default function ContentSet({ output, simulateCopyFailure = false, nested
   const Group = nested ? 'h4' : 'h3', Item = nested ? 'h5' : 'h4';
   return <div className="content-set">
     <section className="caption-group">
-      <Group className="group-title">Caption <span className="muted small">3 góc viết</span></Group>
+      <Group className="group-title">Caption <span className="muted small">Lợi ích · Người đọc · Bối cảnh</span></Group>
       {output.captions.map((text, i) => <article className="caption-card" key={text}>
         <div className="caption-heading"><Item>{captionLabels[i]}</Item><span className="content-index" aria-label={`Caption ${i + 1}`}>{i + 1}/3</span></div>
         <p className="draft-text">{text}</p>

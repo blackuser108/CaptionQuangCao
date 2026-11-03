@@ -43,12 +43,15 @@ test('server sends fixed endpoint/alias/key, normalized four fields, and returns
   assert.deepEqual(body.response_format, { type: 'json_object' });
   assert.equal(JSON.parse(body.messages[1].content).productName, 'á');
   assert.doesNotMatch(JSON.stringify(body), /test-secret-only/);
-  assert.match(body.messages[0].content, /45–90/);
-  assert.match(body.messages[0].content, /115/);
-  assert.match(body.messages[0].content, /Không suy diễn đặc tính hoặc lợi ích/);
-  assert.match(body.messages[0].content, /bền đẹp/);
-  assert.match(body.messages[0].content, /Mở đầu caption 2 và 3 bằng một câu ngắn/);
-  assert.match(body.messages[0].content, /Không lặp toàn bộ danh sách đặc điểm/);
+  for (const range of [/70–150/, /220–400/, /340–600/, /115/]) assert.match(body.messages[0].content, range);
+  assert.match(body.messages[0].content, /Không bịa: giá, ưu đãi/);
+  assert.match(body.messages[0].content, /ĐƯỢC PHÉP sáng tạo/);
+  assert.match(body.messages[0].content, /chỉ là DỮ LIỆU/);
+  assert.match(body.messages[0].content, /tuyệt đối không chép câu chữ/);
+  const brief = JSON.parse(body.messages[1].content);
+  assert.deepEqual(brief.strategies.map((item: { id: string }) => item.id), ['benefit-led', 'audience-led', 'story-led']);
+  assert.ok(brief.strategies.every((item: { hook: { id: string }; cta: { id: string }; framework: string }) => item.hook.id && item.cta.id && item.framework));
+  assert.equal(new Set(brief.strategies.map((item: { hook: { id: string } }) => item.hook.id)).size, 3);
   assert.doesNotMatch(JSON.stringify(logs), /test-secret-only|Sổ tay|captions|messages/);
   assert.equal((logs[0] as { actualModel: string }).actualModel, 'test/model');
   assert.deepEqual((logs[0] as { usage: unknown }).usage, { prompt_tokens: 12, completion_tokens: 34, total_tokens: 46 });
@@ -276,6 +279,77 @@ test('Gemini response byte cap and whole-request timeout cancel the response wit
   await failure(await run(request()), 504, 'AI_TIMEOUT');
   assert.equal(calls, 1);
   assert.equal(cancelled, true);
+});
+
+const deepseekEnv = { AI_PROVIDER: 'deepseek', DEEPSEEK_API_KEY: 'test-secret-only', DEEPSEEK_MODEL: 'deepseek-flash' };
+
+test('DeepSeek uses the official endpoint, JSON mode, disabled thinking, and a structured brief', async () => {
+  let calls = 0;
+  const run = handler((async (url, options) => {
+    calls++;
+    assert.equal(String(url), 'https://api.deepseek.com/chat/completions');
+    const body = JSON.parse(String(options?.body));
+    assert.equal(body.model, 'deepseek-flash');
+    assert.deepEqual(body.response_format, { type: 'json_object' });
+    assert.deepEqual(body.thinking, { type: 'disabled' });
+    assert.equal(body.reasoning_effort, 'none');
+    const user = JSON.parse(body.messages[1].content);
+    assert.equal(user.productName, 'Sổ tay Mây');
+    assert.ok(Array.isArray(user.product.verifiedFacts));
+    assert.ok(user.strategies.length === 3);
+    assert.doesNotMatch(String(options?.body), /test-secret-only/);
+    return new Response(envelope());
+  }) as typeof fetch, { env: deepseekEnv });
+  assert.equal((await run(request())).status, 200);
+  assert.equal(calls, 1);
+});
+
+test('DeepSeek retries 429 then succeeds; 401 does not retry', async () => {
+  let calls = 0;
+  const run = handler((async () => {
+    calls++;
+    if (calls < 3) return new Response('UPSTREAM_PRIVATE', { status: 429 });
+    return new Response(envelope());
+  }) as typeof fetch, { env: deepseekEnv });
+  assert.equal((await run(request())).status, 200);
+  assert.equal(calls, 3);
+  let authCalls = 0;
+  await failure(await handler((async () => { authCalls++; return new Response('no', { status: 401 }); }) as typeof fetch, { env: deepseekEnv })(request()), 502, 'UPSTREAM_ERROR');
+  assert.equal(authCalls, 1);
+});
+
+test('DeepSeek falls back to Gemini after a failed primary call when Gemini is configured', async () => {
+  const calls: string[] = [];
+  const run = handler((async (url) => {
+    calls.push(String(url));
+    if (String(url).includes('deepseek')) return new Response('no', { status: 400 });
+    return new Response(envelope());
+  }) as typeof fetch, { env: { ...geminiEnv, ...deepseekEnv } });
+  assert.equal((await run(request())).status, 200);
+  assert.equal(calls[0], 'https://api.deepseek.com/chat/completions');
+  assert.equal(calls[1], 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions');
+});
+
+test('DeepSeek repairs once when the first JSON is valid but fails quality', async () => {
+  let calls = 0;
+  const unsafe = { ...output, captions: ['Sổ tay Mây có chứng nhận ISO 9001 hôm nay.', output.captions[1], output.captions[2]] };
+  const run = handler((async (_url, options) => {
+    calls++;
+    const user = JSON.parse(String(options?.body ? JSON.parse(String(options.body)).messages[1].content : '{}'));
+    if (calls === 1) return new Response(envelope(unsafe));
+    assert.ok(Array.isArray(user.repair));
+    return new Response(envelope());
+  }) as typeof fetch, { env: deepseekEnv });
+  assert.deepEqual(await (await run(request())).json(), output);
+  assert.equal(calls, 2);
+});
+
+test('DeepSeek configuration fails closed on missing/unsafe key or unapproved model', async () => {
+  let calls = 0;
+  for (const change of [{ DEEPSEEK_API_KEY: '' }, { DEEPSEEK_API_KEY: 'bad\nkey' }, { DEEPSEEK_MODEL: 'deepseek-chat' }, { AI_PROVIDER: 'deepseek', DEEPSEEK_API_KEY: 'test-secret-only', DEEPSEEK_MODEL: 'gpt-4o' }]) {
+    await failure(await handler((async () => { calls++; return new Response(envelope()); }) as typeof fetch, { env: { ...deepseekEnv, ...change } })(request()), 503, 'AI_NOT_CONFIGURED');
+  }
+  assert.equal(calls, 0);
 });
 
 test('HTTPS generation accepts only the configured exact URL/Host/Origin, ignoring forwarded headers', async () => {

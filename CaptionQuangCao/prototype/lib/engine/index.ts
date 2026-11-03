@@ -1,0 +1,11 @@
+export { ENGINE_VERSION } from './types.ts';
+export { library } from './library.ts';
+export { buildAudienceContext, buildBrief, buildProductContext, classifyCategory, extractFacts, looksLikeInjection } from './context.ts';
+export { parseGeneratedJson, repairHints, scoreOutput, toOutput } from './quality.ts';
+export { buildMessages, systemPrompt } from './prompt.ts';
+export type { CampaignBrief, ProductContext, QualityReport } from './types.ts';
+export { parseMode, runPipeline } from './pipeline.ts';
+export type { ChatJson, PipelineMode, PipelineTrace, StageName } from './pipeline.ts';
+export { scoreCandidate, similarity, pickDistinct } from './select.ts';
+export { goldenExamples, pickGolden } from './golden.ts';
+export type { GoldenExample } from './golden.ts';

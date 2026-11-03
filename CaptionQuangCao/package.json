@@ -1,0 +1,30 @@
+{
+  "name": "caption-quang-cao",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "npm@11",
+  "workspaces": ["prototype"],
+  "dependencies": {
+    "@fontsource-variable/dm-sans": "5.3.0",
+    "@supabase/ssr": "0.12.7",
+    "@supabase/supabase-js": "2.118.0",
+    "next": "16.4.3",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.5",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "typescript": "7.0.2"
+  },
+  "scripts": {
+    "dev": "node node_modules/next/dist/bin/next dev prototype --hostname 127.0.0.1",
+    "build": "node node_modules/next/dist/bin/next build prototype",
+    "start": "node node_modules/next/dist/bin/next start prototype --hostname 127.0.0.1",
+    "typecheck": "npm run typecheck --workspace prototype",
+    "test": "npm run test --workspace prototype",
+    "doctor": "npm run doctor --workspace prototype",
+    "compare": "npm run compare --workspace prototype --"
+  }
+}

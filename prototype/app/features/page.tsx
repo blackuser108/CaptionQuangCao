@@ -13,7 +13,7 @@ export default function Page() {
 </article>
 <article className="draft"><p className="eyebrow">02</p>
 <h2>Một bộ đầu ra 3 / 3 / 5</h2>
-<p className="muted">Ba caption, ba headline gợi ý và năm hashtag; không thêm điểm tự đánh giá do AI khai.</p>
+<p className="muted">Ba caption theo lợi ích / người đọc / bối cảnh, ba headline gợi ý và năm hashtag; không thêm điểm tự đánh giá do AI khai.</p>
 <div className="editorial-note">Sổ tay Mây A5, 80 trang kẻ ngang cho những ghi chép trên giảng đường.</div>
 </article>
 <article className="draft"><p className="eyebrow">03</p>
@@ -29,7 +29,7 @@ export default function Page() {
 <article className="draft"><p className="eyebrow">05</p>
 <h2>Bộ đếm để biên tập</h2>
 <p className="muted">Chuẩn hóa NFC và LF rồi đếm code point. Nhắc độ dài vẫn cho copy và tạo lại.</p>
-<div className="editorial-note">45–90 / 150–260 / 180–280 ký tự</div>
+<div className="editorial-note">70–150 / 220–400 / 340–600 ký tự</div>
 </article>
 <div className="section-cta"><Link className="button " href="/create">Xem không gian viết<span className="arrow" aria-hidden="true">↗</span></Link></div>
 </div>

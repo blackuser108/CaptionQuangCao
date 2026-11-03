@@ -29,14 +29,14 @@ export default function Page() {
 </div>
 <p className="muted">Từ bốn thông tin đầu vào, có một bộ bản nháp để đọc, chọn và biên tập trước khi đăng.</p>
 </div>
-<div className="feature-row"><article className="feature"><div className="feature-visual"><div className="line-pair"><span>01</span><span>Ngắn gọn · Giới thiệu sản phẩm</span></div>
-<div className="line-pair"><span>02</span><span>Gợi mở · Đặt câu hỏi đầu bài</span></div>
-<div className="line-pair"><span>03</span><span>Chi tiết · Trình bày dữ kiện</span></div>
+<div className="feature-row"><article className="feature"><div className="feature-visual"><div className="line-pair"><span>01</span><span>Ngắn gọn · Lợi ích có căn cứ</span></div>
+<div className="line-pair"><span>02</span><span>Gợi mở · Tình huống người đọc</span></div>
+<div className="line-pair"><span>03</span><span>Chi tiết · Bối cảnh sử dụng</span></div>
 </div>
 <h3>Ba góc viết để bạn chọn.</h3>
 <p>3 caption, 3 tiêu đề gợi ý và 5 hashtag. Copy riêng phần cần dùng, tạo lại khi muốn một bộ mới.</p>
 </article>
-<article className="feature"><div className="feature-visual"><span className="small">CAPTION MẪU</span><span className="serif">{count(samples[0].captions[0])}<span className="small"> ký tự</span></span><span className="small">Mục tiêu bản ngắn: 45–90</span></div>
+<article className="feature"><div className="feature-visual"><span className="small">CAPTION MẪU</span><span className="serif">{count(samples[0].captions[0])}<span className="small"> ký tự</span></span><span className="small">Mục tiêu bản ngắn: 70–150</span></div>
 <h3>Một nhịp đọc dễ cân nhắc.</h3>
 <p>Bộ đếm và nhắc độ dài giúp biên tập bản nháp. Đây là khuyến nghị sản phẩm, không phải giới hạn Meta.</p>
 </article>

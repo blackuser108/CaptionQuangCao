@@ -7,7 +7,7 @@ Agent tự động Viết Caption Quảng cáo
 
 Ứng dụng **Bàn biên tập** trong `prototype/`: Next16.4.3, React19.3.1, TypeScript7, Node24, pnpm11.25.0. Giao diện V2, bốn trường đầu vào, ba caption/ba headline/năm hashtag; copy từng mục, tạo lại, lịch sử xem/xóa và bộ đếm Unicode. Google login Supabase SSR đã kiểm local với tài khoản chủ.
 
-**AI dùng Gemini Developer API trực tiếp, chọn model tự động phía server.** `GEMINI_MODEL=auto` đọc danh mục được key truy cập, chọn `gemini-3.1-flash-lite` rồi `gemini-3.5-flash-lite` nếu model đầu không có trong danh mục. Gửi đúng một inference, suy luận low; không thử model khác sau lỗi. Google không nhận literal `auto` ở request sinh. Danh mục không chứng minh còn quota; lỗi 429 vẫn trả rõ. Lượt local thật đầu đã trả 200/3-3-5 khoảng 2,9s, nhưng còn suy diễn lợi ích cần biên tập. FreeLLMAPI local được giữ để quay lại thủ công; VPS hoãn, không tự fallback hoặc thêm UI chọn provider. Q1/Q3, tài khoản ngoài chủ và hết phiên thật còn mở.
+**Caption engine (server):** rule-based context → campaign brief → LLM → schema/quality check. `AI_PROVIDER=deepseek` (mặc định gợi ý) gọi `https://api.deepseek.com/chat/completions`, model `deepseek-flash` hoặc `deepseek-v4-pro`, JSON mode, thinking tắt. DeepSeek có retry ngắn với 429/5xx và tối đa một lần sửa output; nếu vẫn lỗi và `GEMINI_API_KEY` đã cấu hình thì mới fallback Gemini. `AI_PROVIDER=gemini` giữ hành vi cũ: catalog auto rồi đúng một inference, không fallback. Thiếu `AI_PROVIDER` vẫn chọn FreeLLMAPI local để tương thích. Không có UI chọn provider. Q1/Q3, tài khoản ngoài chủ và hết phiên thật còn mở.
 
 Hai vercel.json chặn Git autodeploy (`git.deploymentEnabled=false`). Không tự merge/bật deploy vì build thành công. Giữ lịch sử commit gốc; nhánh chuẩn bị `chore/online-readiness`.
 
@@ -24,9 +24,9 @@ pnpm start
 
 Mở http://127.0.0.1:3000. `pnpm dev` để sửa code. Build/test không cần khóa và không gọi inference. Font local có OFL đi kèm. Không static-export vì có API và SSR.
 
-Tạo cấu hình riêng từ `.env.example` ở root; không commit giá trị. Trong `prototype/.env.local`, đặt `AI_PROVIDER=gemini`, `GEMINI_MODEL=auto` và `GEMINI_API_KEY` tự nhập từ [Google AI Studio](https://aistudio.google.com/api-keys). Không gửi khóa vào chat, không dùng Google OAuth Client Secret làm API key. Xác minh project Free tier/quota tại [Rate Limit](https://aistudio.google.com/rate-limit); không bật billing. Thiếu hoặc sai cấu hình trả lỗi rõ, không gọi provider khác.
+Tạo cấu hình riêng từ `.env.example` ở root; không commit giá trị. DeepSeek: `AI_PROVIDER=deepseek`, `DEEPSEEK_API_KEY`, `DEEPSEEK_MODEL=deepseek-flash` ([tài liệu API](https://api-docs.deepseek.com/)). Không phải gói miễn phí vĩnh viễn. Gemini (chính hoặc fallback): `GEMINI_MODEL=auto` và `GEMINI_API_KEY` từ [Google AI Studio](https://aistudio.google.com/api-keys). Không gửi khóa vào chat, không đặt `NEXT_PUBLIC_*` cho API key. Thiếu hoặc sai cấu hình trả lỗi rõ.
 
-Giữ FREELLMAPI_BASE_URL=http://127.0.0.1:31415/v1, FREELLMAPI_MODEL=auto và khóa local cũ trong `.env.local` ở root; dev/start đọc file cha bằng Node, không cần chép khóa. Muốn quay lại, đổi **chỉ** `AI_PROVIDER=freellmapi` trong `prototype/.env.local`, mở router cũ rồi restart server. Khi không có AI_PROVIDER, cấu hình cũ vẫn chọn local để tương thích; giá trị provider lạ bị từ chối. Không fallback khi Gemini lỗi.
+Giữ FREELLMAPI_BASE_URL=http://127.0.0.1:31415/v1, FREELLMAPI_MODEL=auto và khóa local cũ trong `.env.local` ở root; dev/start đọc file cha bằng Node. Muốn quay lại router local, đổi **chỉ** `AI_PROVIDER=freellmapi`. Khi không có AI_PROVIDER, cấu hình cũ vẫn chọn local. `AI_PROVIDER=gemini` không fallback sang DeepSeek hay FreeLLMAPI. `AI_PROVIDER=deepseek` mới fallback Gemini nếu DeepSeek lỗi và Gemini đã cấu hình.
 
 Đặt SUPABASE_URL/SUPABASE_PUBLISHABLE_KEY/AUTH_SITE_URL/AUTH_GOOGLE_ENABLED trong `prototype/.env.local` để Next nạp ở thư mục chạy; dùng đúng project/key của mình. Thiếu cấu hình auth, guest vẫn dùng được. AUTH_SITE_URL local phải khớp127.0.0.1 để giữ origin lịch sử. Không đặt khóa trong biến NEXT_PUBLIC_. Sau sửa env phải restart server.
 
@@ -37,7 +37,7 @@ Google Client Secret chỉ trong Google provider Supabase, không cần đặt t
 ## Hợp đồng và dữ liệu
 
 - Client chỉ gửi productName/description/audience/tone, chuẩn hóa NFC/LF/trim; giới hạn120/1.000/300code point, humorous/formal/youthful. Server kiểm field/type/MIME/Origin/Host/body16KiB.
-- Upstream cố định server, một inference sau một GET danh mục khi dùng auto; không retry/repair/fallback mẫu. Timeout90s chung, danh mục cap256KiB, nội dung cap32KiB; app chỉ trả đúng captions[3]/headlines[3]/hashtags[5], kiểm chuỗi/count/trùng. Lỗi Việt, không raw upstream/credential.
+- Upstream cố định server. Gemini auto: một GET danh mục rồi một inference. DeepSeek: JSON object, retry 429/5xx tối đa 3 lần, tối đa một lần sửa chất lượng; fallback Gemini khi được cấu hình. Timeout90s, danh mục cap256KiB, nội dung cap32KiB; app chỉ trả captions[3]/headlines[3]/hashtags[5]. Lỗi Việt, không raw upstream/credential. Brief/rule library ở server, không lưu API key vào localStorage.
 - Account dùng getUser xác minh server; cookie HttpOnly/Lax/Secure trên HTTPS, private/no-store; browser không giữ auth token trong localStorage. Kiểm lại danh tính/ẩn vùng riêng lúc chưa xác minh, hủy pending/chặn response muộn khi đổi chủ.
 - Guest key `ban-bien-tap:history:v1` giữ nguyên; user namespace theo UUID Supabase đã server xác minh. Không nhập guest→account, không xóa key mẫu cũ. localStorage chỉ cùng origin/trình duyệt, không mã hóa/sao lưu/đồng bộ. Đổi domain không tự chuyển lịch sử.
 - State giữ giữa Create/History; rời tool/đổi chủ có thể bỏ draft, UI có cảnh báo. JSON hợp lệ không chứng minh chất lượng/sự thật; đọc lại bản nháp trước dùng.

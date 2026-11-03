@@ -8,7 +8,7 @@ type Props = {
 export default function ProductForm({ input, busy, errors, onChange, onBlur, onSubmit }: Props) {
   return <section className="form-panel panel" aria-labelledby="form-title">
     <h2 id="form-title" tabIndex={-1}>Thông tin sản phẩm</h2>
-    <p className="muted small">Cả 4 trường đều bắt buộc (*).</p>
+    <p className="muted small">Cả 4 trường đều bắt buộc (*). Đối tượng và tông giọng điều khiển brief; thiếu dữ kiện thì caption giữ trung tính.</p>
     <form noValidate onSubmit={event => { event.preventDefault(); onSubmit(); }}>
       {Object.keys(errors).length > 0 && <div id="form-errors" className="notice error" tabIndex={-1}>
         <strong>Kiểm tra lại thông tin sản phẩm.</strong>

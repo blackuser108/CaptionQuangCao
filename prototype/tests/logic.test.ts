@@ -17,12 +17,13 @@ test('Unicode NFC, emoji sequences, CRLF/CR and exact text are counted consisten
   assert.equal(openingCount('á\r\nb'), 1);
 });
 
-test('Editorial >280 is a warning; opening threshold can be checked separately', () => {
-  assert.doesNotMatch(captionWarning('a'.repeat(279), 2), /Caption hơi dài/);
-  assert.equal(captionWarning('a'.repeat(280), 2), '');
-  assert.match(captionWarning('a'.repeat(281), 2), /Caption hơi dài/);
+test('Editorial ranges are warnings; Instagram 2,200 limit is a separate warning; opening threshold is checked separately', () => {
+  assert.equal(captionWarning('a'.repeat(600), 2), '');
+  assert.match(captionWarning('a'.repeat(601), 2), /Ngoài khoảng mục tiêu 340–600/);
+  assert.match(captionWarning('a'.repeat(2201), 2), /2\.200 ký tự của caption Instagram/);
+  assert.doesNotMatch(captionWarning('a'.repeat(2200), 2), /Instagram/);
   assert.equal(openingCount('a'.repeat(116) + '\nabc'), 116);
-  for (const [index, min, max] of [[0,45,90], [1,150,260], [2,180,280]]) {
+  for (const [index, min, max] of [[0,70,150], [1,220,400], [2,340,600]]) {
     assert.equal(captionWarning('a'.repeat(min), index), '');
     assert.equal(captionWarning('a'.repeat(max), index), '');
     assert.ok(captionWarning('a'.repeat(min - 1), index));
@@ -47,7 +48,7 @@ test('Both fixed sets keep 3/3/5 and related hashtags; boundary sample is delibe
     for (const values of Object.values(output)) assert.equal(new Set(values).size, values.length);
     assert.ok(output.hashtags.every(tag => /^#[^\s#]+$/u.test(tag)));
   }
-  assert.ok(count(longSample.captions[2]) > 280);
+  assert.ok(count(longSample.captions[2]) > 600);
   assert.ok(openingCount(longSample.captions[2]) > 115);
   assert.ok(count(longSample.headlines[2]) > 40);
   assert.ok(longSample.captions[2].includes('\n'));
