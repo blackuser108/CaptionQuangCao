@@ -80,6 +80,8 @@ export async function runPipeline(args: {
   input: Input; brief: CampaignBrief; mode: Exclude<PipelineMode, 'single'>; chat: ChatJson; seed?: number;
   /** Cho phép host chặn bước muộn khi gần hết giờ; bước write luôn chạy. */
   canRun?: (stage: StageName) => boolean; now?: () => number;
+  /** Host có fallback phải chờ cả parser của judge trước khi bắt đầu lượt chấm tiếp theo. */
+  sequentialJudges?: boolean;
 }): Promise<{ output?: Output; trace: PipelineTrace }> {
   const { input, brief, mode, chat, canRun = () => true, now = Date.now } = args;
   const random = seededRandom((args.seed ?? 0) ^ 0x9e3779b9);
@@ -115,9 +117,15 @@ export async function runPipeline(args: {
     const capped = eligible.map(list => [...list].sort((a, b) => b.det - a.det).slice(0, LETTERS.length));
     const first = capped.map(list => shuffled(list, random));
     // deep: hai lượt chấm với thứ tự đảo ngược chạy SONG SONG (không phụ thuộc nhau) để không cộng thêm độ trễ.
-    const rounds = [judgeOnce('judge', first)];
-    if (mode === 'deep' && canRun('judge-reverse')) rounds.push(judgeOnce('judge-reverse', first.map(list => [...list].reverse())));
-    await Promise.all(rounds);
+    // Host có fallback chọn tuần tự để chờ validator và tránh gửi lượt mới sau lỗi cuối.
+    if (args.sequentialJudges) {
+      await judgeOnce('judge', first);
+      if (mode === 'deep' && canRun('judge-reverse')) await judgeOnce('judge-reverse', first.map(list => [...list].reverse()));
+    } else {
+      const rounds = [judgeOnce('judge', first)];
+      if (mode === 'deep' && canRun('judge-reverse')) rounds.push(judgeOnce('judge-reverse', first.map(list => [...list].reverse())));
+      await Promise.all(rounds);
+    }
   }
   trace.judged = judged.length > 0;
 

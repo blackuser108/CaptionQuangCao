@@ -16,6 +16,7 @@ const generationErrors: Record<string, string> = {
   AI_NOT_CONFIGURED: 'Kết nối AI chưa được cấu hình đúng. Kiểm tra cấu hình phía máy chủ.',
   AI_UNAVAILABLE: 'Chưa kết nối được dịch vụ AI. Kiểm tra kết nối phía máy chủ rồi thử lại.',
   AI_TIMEOUT: 'AI chưa phản hồi kịp. Bạn có thể chủ động thử lại.',
+  AI_REQUEST_LIMIT: 'Đã đạt giới hạn yêu cầu AI cho lần tạo này. Chưa có bộ nội dung hoàn chỉnh.',
 };
 function focusRegion(id: string) {
   requestAnimationFrame(() => {

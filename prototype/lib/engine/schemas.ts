@@ -29,7 +29,7 @@ const polish = object({ captions: strings });
 const schemas = { write: ['writer_pool', writer], judge: ['judge_scores', judge], 'judge-reverse': ['judge_scores', judge], polish: ['polish_captions', polish] } as const;
 
 export function stageFormat(stage: StageName, providerId: string): { type: string; json_schema?: unknown } {
-  if (providerId !== 'gemini') return { type: 'json_object' };
+  if (providerId !== 'gemini' && providerId !== 'groq') return { type: 'json_object' };
   const [name, schema] = schemas[stage];
   return { type: 'json_schema', json_schema: { name, strict: true, schema } };
 }
