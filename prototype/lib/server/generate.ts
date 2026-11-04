@@ -5,6 +5,7 @@ import { scoreOutput } from '../engine/quality.ts';
 import { runPipeline, type StageName } from '../engine/pipeline.ts';
 import { stageFormat } from '../engine/schemas.ts';
 import { deepseekConfig } from './deepseek.ts';
+import { openrouterConfig } from './openrouter.ts';
 import type { Input } from '../content.ts';
 
 type Options = { env?: Record<string, string | undefined>; fetchUpstream?: typeof fetch; timeoutMs?: number; log?: (data: unknown) => void };
@@ -79,14 +80,15 @@ export function createGenerateHandler({ env = process.env, fetchUpstream = fetch
       input = cleanInput(data as Input);
       if (Object.keys(validate(input)).length) return failure('INVALID_INPUT');
     } catch { return failure('INVALID_INPUT'); }
-    const provider = env.AI_PROVIDER ?? 'freellmapi', gemini = provider === 'gemini', deepseek = provider === 'deepseek';
+    const provider = env.AI_PROVIDER ?? 'freellmapi', gemini = provider === 'gemini', deepseek = provider === 'deepseek', openrouter = provider === 'openrouter';
     const ds = deepseek ? deepseekConfig(env) : undefined;
+    const router = openrouter ? openrouterConfig(env) : undefined;
     const mode = env.CAPTION_PIPELINE ?? 'deep';
     if (!['single', 'smart', 'deep'].includes(mode)) return failure('AI_NOT_CONFIGURED');
-    const key = deepseek ? ds?.key : gemini ? env.GEMINI_API_KEY?.trim() : env.FREELLMAPI_API_KEY;
-    let model = deepseek ? ds?.model : gemini ? env.GEMINI_MODEL : env.FREELLMAPI_MODEL;
-    if (!['gemini', 'freellmapi', 'deepseek'].includes(provider) || !key || !/^[\x21-\x7e]{1,512}$/.test(key) ||
-      (deepseek ? !ds : gemini ? !['auto', 'gemini-3.8-flash', ...autoModels].includes(model || '') : env.FREELLMAPI_BASE_URL !== 'http://127.0.0.1:31415/v1' || model !== 'auto')) return failure('AI_NOT_CONFIGURED');
+    const key = openrouter ? router?.key : deepseek ? ds?.key : gemini ? env.GEMINI_API_KEY?.trim() : env.FREELLMAPI_API_KEY;
+    let model = openrouter ? router?.model : deepseek ? ds?.model : gemini ? env.GEMINI_MODEL : env.FREELLMAPI_MODEL;
+    if (!['gemini', 'freellmapi', 'deepseek', 'openrouter'].includes(provider) || !key || !/^[\x21-\x7e]{1,512}$/.test(key) ||
+      (openrouter ? !router : deepseek ? !ds : gemini ? !['auto', 'gemini-3.8-flash', ...autoModels].includes(model || '') : env.FREELLMAPI_BASE_URL !== 'http://127.0.0.1:31415/v1' || model !== 'auto')) return failure('AI_NOT_CONFIGURED');
     if (inFlight) return failure('RATE_LIMITED');
     inFlight = true;
     const controller = new AbortController(), started = Date.now();
@@ -124,12 +126,13 @@ export function createGenerateHandler({ env = process.env, fetchUpstream = fetch
       const chat = async (messages: readonly {role: string; content: string}[], stage?: StageName) => {
         if (controller.signal.aborted) throw new Error('AI_TIMEOUT');
         if (++calls > (mode === 'single' ? 1 : mode === 'smart' ? 2 : 4)) throw new Error('INVALID_AI_OUTPUT');
-        const upstream = await fetchUpstream(deepseek ? ds!.url : gemini ? 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions' : 'http://127.0.0.1:31415/v1/chat/completions', {
+        const upstream = await fetchUpstream(openrouter ? router!.url : deepseek ? ds!.url : gemini ? 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions' : 'http://127.0.0.1:31415/v1/chat/completions', {
           method: 'POST', redirect: 'error', cache: 'no-store', signal: controller.signal,
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
           body: JSON.stringify({ model, stream: false,
             response_format: stage ? stageFormat(stage, provider) : gemini ? geminiFormat : {type:'json_object'},
-            ...(deepseek ? {thinking:{type:'disabled'},max_tokens:stage === 'write' ? 4096 : 2048} : gemini ? {reasoning_effort:'low'} : {}), messages }),
+            ...((deepseek || openrouter) ? {max_tokens:stage === 'write' ? 4096 : 2048} : {}),
+            ...(openrouter ? {reasoning:{enabled:false},provider:{allow_fallbacks:false,require_parameters:true,max_price:{prompt:0,completion:0,request:0}}} : deepseek ? {thinking:{type:'disabled'}} : gemini ? {reasoning_effort:'low'} : {}), messages }),
         });
         upstreamStatus = upstream.status;
         if (!upstream.ok) {
