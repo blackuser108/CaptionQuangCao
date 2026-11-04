@@ -97,6 +97,7 @@ export function createGenerateHandler({ env = process.env, fetchUpstream = fetch
     if (request.signal.aborted) abort();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     let calls = 0;
+    const attempts: {stage: StageName | 'single'; upstreamStatus?: number; actualModel?: string; retryAfterSeconds?: number}[] = [];
     let diagnostics: {score:number;issues:string[];calls:number} | undefined;
     let status = 503, upstreamStatus: number | undefined, actualModel: string | undefined, usage: Record<string, number> | undefined;
     try {
@@ -126,6 +127,7 @@ export function createGenerateHandler({ env = process.env, fetchUpstream = fetch
       const chat = async (messages: readonly {role: string; content: string}[], stage?: StageName) => {
         if (controller.signal.aborted) throw new Error('AI_TIMEOUT');
         if (++calls > (mode === 'single' ? 1 : mode === 'smart' ? 2 : 4)) throw new Error('INVALID_AI_OUTPUT');
+        const attempt: typeof attempts[number] = {stage: stage ?? 'single'}; attempts.push(attempt);
         const upstream = await fetchUpstream(openrouter ? router!.url : deepseek ? ds!.url : gemini ? 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions' : 'http://127.0.0.1:31415/v1/chat/completions', {
           method: 'POST', redirect: 'error', cache: 'no-store', signal: controller.signal,
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
@@ -135,13 +137,16 @@ export function createGenerateHandler({ env = process.env, fetchUpstream = fetch
             ...(openrouter ? {reasoning:{enabled:false},provider:{allow_fallbacks:false,require_parameters:true,max_price:{prompt:0,completion:0,request:0}}} : deepseek ? {thinking:{type:'disabled'}} : gemini ? {reasoning_effort:'low'} : {}), messages }),
         });
         upstreamStatus = upstream.status;
+        attempt.upstreamStatus = upstream.status;
+        const retryAfter = upstream.headers.get('retry-after');
+        if (retryAfter && /^\d{1,5}$/.test(retryAfter) && Number(retryAfter) <= 86400) attempt.retryAfterSeconds = Number(retryAfter);
         if (!upstream.ok) {
           void upstream.body?.cancel().catch(() => {});
           throw new Error(upstream.status === 429 ? 'RATE_LIMITED' : 'UPSTREAM_ERROR');
         }
         try {
           const data = JSON.parse(await readLimited(upstream, 32 * 1024, controller.signal));
-          if (typeof data.model === 'string' && /^[\w./:-]{1,120}$/.test(data.model) && !data.model.includes(key!)) actualModel = data.model;
+          if (typeof data.model === 'string' && /^[\w./:-]{1,120}$/.test(data.model) && !data.model.includes(key!)) { actualModel = data.model; attempt.actualModel = data.model; }
           if (data.usage && typeof data.usage === 'object') {
             const totals = {...usage};
             for (const k of ['prompt_tokens','completion_tokens','total_tokens']) {
@@ -176,7 +181,7 @@ export function createGenerateHandler({ env = process.env, fetchUpstream = fetch
       return failure(controller.signal.aborted ? 'AI_TIMEOUT' : 'AI_UNAVAILABLE');
     } finally {
       clearTimeout(timer); request.signal.removeEventListener('abort',abort); controller.abort(); inFlight = false;
-      log({ event: 'generate', status, upstreamStatus, durationMs: Date.now() - started, requestedModel: model, actualModel, usage, mode, calls, diagnostics });
+      log({ event: 'generate', status, upstreamStatus, durationMs: Date.now() - started, requestedModel: model, actualModel, usage, mode, calls, attempts, diagnostics });
     }
   };
 }
