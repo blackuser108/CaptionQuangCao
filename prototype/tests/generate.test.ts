@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createGenerateHandler } from '../lib/server/generate.ts';
 import { sampleInput, getSample } from '../lib/samples.ts';
 
-const env = { FREELLMAPI_BASE_URL: 'http://127.0.0.1:31415/v1', FREELLMAPI_MODEL: 'auto', FREELLMAPI_API_KEY: 'test-secret-only' };
+const env = { CAPTION_PIPELINE: 'single', FREELLMAPI_BASE_URL: 'http://127.0.0.1:31415/v1', FREELLMAPI_MODEL: 'auto', FREELLMAPI_API_KEY: 'test-secret-only' };
 const geminiEnv = { ...env, AI_PROVIDER: 'gemini', GEMINI_MODEL: 'gemini-3.8-flash', GEMINI_API_KEY: 'test-secret-only' };
 const output = getSample(0);
 const request = (body: unknown = sampleInput, headers = {}, url = 'http://127.0.0.1:3000/api/generate') => new Request(url, {
