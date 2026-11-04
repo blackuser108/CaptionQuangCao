@@ -134,7 +134,7 @@ export function createGenerateHandler({ env = process.env, fetchUpstream = fetch
           body: JSON.stringify({ model, stream: false,
             response_format: stage ? stageFormat(stage, provider) : gemini ? geminiFormat : {type:'json_object'},
             ...((deepseek || openrouter) ? {max_tokens:stage === 'write' ? 4096 : 2048} : {}),
-            ...(openrouter ? {reasoning:{enabled:false},provider:{allow_fallbacks:false,require_parameters:true,max_price:{prompt:0,completion:0,request:0}}} : deepseek ? {thinking:{type:'disabled'}} : gemini ? {reasoning_effort:'low'} : {}), messages }),
+            ...(openrouter ? {reasoning:{enabled:false},provider:{allow_fallbacks:false,require_parameters:true,ignore:['google-ai-studio'],max_price:{prompt:0,completion:0,request:0}}} : deepseek ? {thinking:{type:'disabled'}} : gemini ? {reasoning_effort:'low'} : {}), messages }),
         });
         upstreamStatus = upstream.status;
         attempt.upstreamStatus = upstream.status;

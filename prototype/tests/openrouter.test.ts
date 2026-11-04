@@ -29,7 +29,7 @@ test('OpenRouter Deep uses free router, records selected model, disables thinkin
     assert.equal(call.url, 'https://openrouter.ai/api/v1/chat/completions'); assert.equal(call.options.redirect, 'error'); assert.equal(call.options.cache, 'no-store');
     assert.equal((call.options.headers as Record<string, string>).Authorization, 'Bearer test-openrouter-secret');
     assert.equal(call.body.model, model); assert.equal(call.body.models, undefined); assert.equal(call.body.plugins, undefined);
-    assert.deepEqual(call.body.provider, { allow_fallbacks: false, require_parameters: true, max_price: { prompt: 0, completion: 0, request: 0 } });
+    assert.deepEqual(call.body.provider, { allow_fallbacks: false, require_parameters: true, ignore: ['google-ai-studio'], max_price: { prompt: 0, completion: 0, request: 0 } });
     assert.deepEqual(call.body.reasoning, { enabled: false }); assert.equal(call.body.thinking, undefined); assert.equal(call.body.max_tokens, i === 0 ? 4096 : 2048);
     assert.deepEqual(call.body.response_format, { type: 'json_object' }); assert.equal((call.options.signal as AbortSignal).aborted, true);
   }
