@@ -97,7 +97,7 @@ export function createGenerateHandler({ env = process.env, fetchUpstream = fetch
     if (request.signal.aborted) abort();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     let calls = 0;
-    const attempts: {stage: StageName | 'single'; upstreamStatus?: number; actualModel?: string; retryAfterSeconds?: number}[] = [];
+    const attempts: {stage: StageName | 'single'; requestedModel?: string; upstreamStatus?: number; actualModel?: string; retryAfterSeconds?: number}[] = [];
     let diagnostics: {score:number;issues:string[];calls:number} | undefined;
     let status = 503, upstreamStatus: number | undefined, actualModel: string | undefined, usage: Record<string, number> | undefined;
     try {
@@ -124,17 +124,19 @@ export function createGenerateHandler({ env = process.env, fetchUpstream = fetch
         }
       }
       const brief = buildBrief(input);
+      const routerOffset = router ? Math.floor(Math.random() * router.models.length) : 0;
       const chat = async (messages: readonly {role: string; content: string}[], stage?: StageName) => {
         if (controller.signal.aborted) throw new Error('AI_TIMEOUT');
         if (++calls > (mode === 'single' ? 1 : mode === 'smart' ? 2 : 4)) throw new Error('INVALID_AI_OUTPUT');
-        const attempt: typeof attempts[number] = {stage: stage ?? 'single'}; attempts.push(attempt);
+        const requestedModel = router ? router.models[(routerOffset + calls - 1) % router.models.length] : model;
+        const attempt: typeof attempts[number] = {stage: stage ?? 'single', requestedModel}; attempts.push(attempt);
         const upstream = await fetchUpstream(openrouter ? router!.url : deepseek ? ds!.url : gemini ? 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions' : 'http://127.0.0.1:31415/v1/chat/completions', {
           method: 'POST', redirect: 'error', cache: 'no-store', signal: controller.signal,
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-          body: JSON.stringify({ model, stream: false,
+          body: JSON.stringify({ model: requestedModel, stream: false,
             response_format: stage ? stageFormat(stage, provider) : gemini ? geminiFormat : {type:'json_object'},
             ...((deepseek || openrouter) ? {max_tokens:stage === 'write' ? 4096 : 2048} : {}),
-            ...(openrouter ? {reasoning:{enabled:false},provider:{allow_fallbacks:false,require_parameters:true,ignore:['google-ai-studio'],max_price:{prompt:0,completion:0,request:0}}} : deepseek ? {thinking:{type:'disabled'}} : gemini ? {reasoning_effort:'low'} : {}), messages }),
+            ...(openrouter ? {reasoning:{enabled:false},provider:{allow_fallbacks:false,require_parameters:true,max_price:{prompt:0,completion:0,request:0}}} : deepseek ? {thinking:{type:'disabled'}} : gemini ? {reasoning_effort:'low'} : {}), messages }),
         });
         upstreamStatus = upstream.status;
         attempt.upstreamStatus = upstream.status;
