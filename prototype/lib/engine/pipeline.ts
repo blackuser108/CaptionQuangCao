@@ -5,13 +5,14 @@ import {
   type JudgedCandidate, type Message, type Pool,
 } from './agents.ts';
 import { openingOverlap, scoreOutput } from './quality.ts';
+import { InvalidAIOutput } from './output-error.ts';
 import { pickDistinct, scoreCandidate, similarity, type Ranked } from './select.ts';
 import type { CampaignBrief } from './types.ts';
 
 export type PipelineMode = 'single' | 'smart' | 'deep';
 export type StageName = 'write' | 'judge' | 'judge-reverse' | 'polish';
 /** Gọi LLM, trả JSON đã parse. Tự ném lỗi nếu upstream lỗi/hết giờ/không phải JSON. */
-export type ChatJson = (messages: readonly Message[], stage: StageName) => Promise<unknown>;
+export type ChatJson = (messages: readonly Message[], stage: StageName, judgeIds?: readonly (readonly string[])[]) => Promise<unknown>;
 
 export type PipelineTrace = {
   mode: PipelineMode;
@@ -52,6 +53,17 @@ function eligibleCandidates(pool: Pool, input: Input, brief: CampaignBrief): { e
   return { eligible, generated, passed };
 }
 
+function distinctCaptionSet<T extends { text: string }>(slots: T[][]): T[] | undefined {
+  const [first, second, third] = slots;
+  for (const a of first) {
+    for (const b of second) {
+      if (a.text === b.text) continue;
+      const c = third.find(item => item.text !== a.text && item.text !== b.text);
+      if (c) return [a, b, c];
+    }
+  }
+}
+
 function pickHeadlines(pool: Pool, input: Input, openings: string[]) {
   const seen = new Set<string>(), out: string[] = [];
   const ranked = [...pool.headlines].sort((a,b)=>Number(openings.some(open=>openingOverlap(open,a)>0.8))-Number(openings.some(open=>openingOverlap(open,b)>0.8)));
@@ -86,31 +98,33 @@ export async function runPipeline(args: {
   const { input, brief, mode, chat, canRun = () => true, now = Date.now } = args;
   const random = seededRandom((args.seed ?? 0) ^ 0x9e3779b9);
   const trace: PipelineTrace = { mode, stages: [], pool: { generated: 0, eligible: 0 }, judged: false, polished: [false, false, false] };
-  const run = async (stage: StageName, messages: Message[]) => {
+  const run = async (stage: StageName, messages: Message[], judgeIds?: readonly (readonly string[])[]) => {
     const started = now();
     const record = { stage, ok: false, ms: 0 };
     trace.stages.push(record);
-    try { const value = await chat(messages, stage); record.ok = true; record.ms = now() - started; return { value, record }; }
+    try { const value = await chat(messages, stage, judgeIds); record.ok = true; record.ms = now() - started; return value; }
     catch (error) { record.ms = now() - started; throw error; }
   };
 
-  // 1) WRITER: pool ứng viên đa dạng. Không có pool dùng được thì trả undefined để host rơi về đường 1 lượt.
-  const pool = parsePool((await run('write', buildWriterMessages(input, brief))).value);
-  if (!pool) return { trace };
+  // 1) WRITER: kiểm pool trước khi dùng lượt chấm.
+  const pool = parsePool(await run('write', buildWriterMessages(input, brief)));
+  if (!pool) throw new InvalidAIOutput('POOL_CANDIDATES', 'write');
   const { eligible, generated, passed } = eligibleCandidates(pool, input, brief);
   trace.pool = { generated, eligible: passed };
-  if (eligible.some(list => !list.length)) return { trace };
+  if (!distinctCaptionSet(eligible)) throw new InvalidAIOutput('POOL_CANDIDATES', 'write');
+  if (!pickHeadlines(pool, input, [])) throw new InvalidAIOutput('POOL_HEADLINES', 'write');
+  const hashtags = pickHashtags(pool);
+  if (!hashtags) throw new InvalidAIOutput('POOL_HASHTAGS', 'write');
 
   // 2) JUDGE (tùy chọn): chấm theo rubric trên các ứng viên đã qua cổng sự thật.
   const judged: Map<string, JudgedCandidate>[][] = []; // theo lượt chấm → theo slot → nhãn
   const orders: Eligible[][][] = [];
   const judgeOnce = async (stage: StageName, order: Eligible[][]) => {
     const groups = order.map(list => list.map((item, i) => ({ id: LETTERS[i], text: item.text })));
-    const { value, record } = await run(stage, buildJudgeMessages(input, brief, groups));
-    const result = parseJudge(value, groups);
-    if (!result) throw new Error('INVALID_AI_OUTPUT');
-    record.ok &&= !!result;
-    if (result) { judged.push(result); orders.push(order); }
+    const value = await run(stage, buildJudgeMessages(input, brief, groups), groups.map(group => group.map(item => item.id)));
+    const result = parseJudge(value, groups, reason => { throw new InvalidAIOutput(reason, stage); });
+    if (!result) throw new InvalidAIOutput('JUDGE_SCHEMA', stage);
+    judged.push(result); orders.push(order);
   };
   const needsJudge = eligible.some(list => list.length > 1);
   if (needsJudge && canRun('judge')) {
@@ -160,33 +174,38 @@ export async function runPipeline(args: {
     }));
     trace.judgeAgreement = Number((winners[0].filter((w, i) => w && w === winners[1][i]).length / 3).toFixed(2));
   }
-  const chosen = pickDistinct(ranked, 0.5).map((pick, slot) => ranked[slot].find(row => row.index === pick.index)!);
+  let chosen = pickDistinct(ranked, 0.5).map((pick, slot) => ranked[slot].find(row => row.index === pick.index)!);
+  if (new Set(chosen.map(row => row.text)).size !== 3) {
+    const distinct = distinctCaptionSet(ranked.map(list => [...list].sort((a, b) => b.score - a.score)));
+    if (!distinct) throw new InvalidAIOutput('FINAL_OUTPUT', 'final');
+    chosen = distinct;
+  }
   let captions = chosen.map(row => row.text);
 
   // 4) POLISH (deep): chỉ nhận bản sửa nếu vẫn qua cổng, không tệ hơn, và vẫn là cùng một bài (không viết lại).
   if (mode === 'deep' && chosen.some(row => row.fix) && canRun('polish')) {
-    const polished = parsePolish((await run('polish', buildPolishMessages(input, brief, chosen.map(row => ({ text: row.text, fix: row.fix }))))).value);
-    if (!polished) throw new Error('INVALID_AI_OUTPUT');
-    if (polished) {
-      captions = captions.map((original, slot) => {
-        const next = polished[slot];
-        if (!chosen[slot].fix || next === original) return original;
-        const before = scoreCandidate(original, slot, input, brief), after = scoreCandidate(next, slot, input, brief);
-        const similar = similarity(original, next) >= MIN_SIMILARITY_TO_ACCEPT_POLISH;
-        const bounded = Array.from(next).length <= Array.from(original).length * 1.25;
-        if (after.hard || !similar || !bounded || after.score < before.score - 0.02) return original;
-        trace.polished[slot] = true;
-        return next;
-      });
-    }
+    const polished = parsePolish(await run('polish', buildPolishMessages(input, brief, chosen.map(row => ({ text: row.text, fix: row.fix })))));
+    if (!polished) throw new InvalidAIOutput('POLISH_SCHEMA', 'polish');
+    const used = new Set(captions);
+    captions = captions.map((original, slot) => {
+      const next = polished[slot];
+      if (!chosen[slot].fix || used.has(next)) return original;
+      const before = scoreCandidate(original, slot, input, brief), after = scoreCandidate(next, slot, input, brief);
+      const similar = similarity(original, next) >= MIN_SIMILARITY_TO_ACCEPT_POLISH;
+      const bounded = Array.from(next).length <= Array.from(original).length * 1.25;
+      if (after.hard || !similar || !bounded || after.score < before.score - 0.02) return original;
+      trace.polished[slot] = true;
+      used.delete(original);
+      used.add(next);
+      return next;
+    });
   }
 
   // 5) Lắp ráp bộ 3/3/5 và kiểm lần cuối bằng đúng validator + scorer của đường 1 lượt.
   const headlines = pickHeadlines(pool, input, captions.map(text => text.split('\n')[0]));
-  const hashtags = pickHashtags(pool);
-  if (!headlines || !hashtags) return { trace };
+  if (!headlines) throw new InvalidAIOutput('FINAL_OUTPUT', 'final');
   const output: Output = { captions, headlines, hashtags };
-  if (!validOutput(output)) return { trace };
+  if (!validOutput(output)) throw new InvalidAIOutput('FINAL_OUTPUT', 'final');
   const report = scoreOutput(output, input, brief);
   trace.finalScore = report.score; trace.finalPass = report.pass;
   return { output, trace };

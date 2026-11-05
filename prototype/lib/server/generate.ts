@@ -3,9 +3,11 @@ import { buildBrief } from '../engine/context.ts';
 import { buildMessages } from '../engine/prompt.ts';
 import { scoreOutput } from '../engine/quality.ts';
 import { runPipeline, type StageName } from '../engine/pipeline.ts';
+import { InvalidAIOutput } from '../engine/output-error.ts';
 import { responseFormat } from '../engine/schemas.ts';
 import { deepseekConfig } from './deepseek.ts';
 import { groqConfig } from './groq.ts';
+import { decodeProviderOutput, type ProviderOutputMetadata } from './provider-output.ts';
 import type { Input } from '../content.ts';
 
 type Options = { env?: Record<string, string | undefined>; fetchUpstream?: typeof fetch; timeoutMs?: number; log?: (data: unknown) => void };
@@ -25,7 +27,7 @@ function failure(code: ErrorCode) {
   return Response.json({ error: { code, message } }, { status, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
 }
 
-async function readLimited(message: Request | Response, limit: number, signal: AbortSignal) {
+async function readLimited(message: Request | Response, limit: number, signal: AbortSignal, onBytes?: (bytes: number) => void) {
   const reader = message.body?.getReader();
   if (!reader) throw new Error('EMPTY_BODY');
   const cancel = () => { void reader.cancel().catch(() => {}); };
@@ -40,6 +42,7 @@ async function readLimited(message: Request | Response, limit: number, signal: A
       signal.throwIfAborted();
       if (done) return text + decoder.decode();
       bytes += value.byteLength;
+      onBytes?.(bytes);
       if (bytes > limit) throw new Error('BODY_TOO_LARGE');
       text += decoder.decode(value, { stream: true });
     }
@@ -47,9 +50,21 @@ async function readLimited(message: Request | Response, limit: number, signal: A
   finally { signal.removeEventListener('abort', cancel); reader.releaseLock(); }
 }
 
-// Reserve the failed stage and both judge rounds that still lie ahead.
-// Polish depends on the selected judges' fixes and is counted if requested.
-const deepFallbackCalls = { write: 3, judge: 2, 'judge-reverse': 1, polish: 1, single: 1 };
+// Reserve the replacement attempt, all remaining judges, and possible polish.
+const deepFallbackCalls = { write: 4, judge: 3, 'judge-reverse': 2, polish: 1, single: 1 };
+
+function groqQuota(headers: Headers) {
+  const quota: Record<string, number | string> = {};
+  for (const name of ['x-ratelimit-limit-requests', 'x-ratelimit-limit-tokens', 'x-ratelimit-remaining-requests', 'x-ratelimit-remaining-tokens']) {
+    const value = headers.get(name);
+    if (value && /^\d{1,12}$/.test(value)) quota[name] = Number(value);
+  }
+  for (const name of ['x-ratelimit-reset-requests', 'x-ratelimit-reset-tokens']) {
+    const value = headers.get(name);
+    if (value && value.length <= 24 && /^(?:\d+(?:\.\d+)?(?:ms|s|m|h))+$/u.test(value)) quota[name] = value;
+  }
+  return Object.keys(quota).length ? quota : undefined;
+}
 
 export function createGenerateHandler({ env = process.env, fetchUpstream = fetch, timeoutMs = generationTimeoutMs, log = console.info }: Options = {}) {
   // shortcut: guard chỉ dùng cho một process local; cần cơ chế dùng chung trước khi triển khai nhiều instance.
@@ -99,7 +114,12 @@ export function createGenerateHandler({ env = process.env, fetchUpstream = fetch
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     let calls = 0;
     const maxCalls = mode === 'single' ? 1 : mode === 'smart' ? 2 : 4;
-    const attempts: {stage: StageName | 'single'; provider: string; requestedModel?: string; upstreamStatus?: number; actualModel?: string; retryAfterSeconds?: number; durationMs: number; usage?: Record<string, number>}[] = [];
+    const attempts: (ProviderOutputMetadata & {
+      stage: StageName | 'single'; provider: string; requestedModel: string; upstreamStatus?: number;
+      retryAfterSeconds?: number; quota?: ReturnType<typeof groqQuota>; durationMs: number; responseBytes?: number;
+    })[] = [];
+    let outputError: { reason: string; stage?: InvalidAIOutput['stage'] } | undefined;
+    let fallbackBudget: { stage: StageName | 'single'; remaining: number; required: number } | undefined;
     let diagnostics: {score:number;issues:string[];calls:number} | undefined;
     let status = 503, upstreamStatus: number | undefined, actualModel: string | undefined, usage: Record<string, number> | undefined;
     try {
@@ -107,8 +127,10 @@ export function createGenerateHandler({ env = process.env, fetchUpstream = fetch
       const brief = buildBrief(input);
       let activeProvider = provider;
       let activeTarget = primary;
-      const containsKey = (text: string) => text.includes(primary.key) || !!(direct && text.includes(direct.fallback.key));
-      const chat = async (messages: readonly {role: string; content: string}[], stage?: StageName): Promise<unknown> => {
+      const keys = direct ? [primary.key, direct.fallback.key] : [primary.key];
+      const serializedKeys = keys.map(key => JSON.stringify(key).slice(1, -1));
+      const containsKey = (text: string, serialized = false) => (serialized ? serializedKeys : keys).some(key => text.includes(key));
+      const chat = async (messages: readonly {role: string; content: string}[], stage?: StageName, judgeIds?: readonly (readonly string[])[]): Promise<unknown> => {
         controller.signal.throwIfAborted();
         // Count dispatched attempts, including HTTP failures. Never dispatch a fifth inference.
         if (calls >= maxCalls) throw new Error('AI_REQUEST_LIMIT');
@@ -125,7 +147,7 @@ export function createGenerateHandler({ env = process.env, fetchUpstream = fetch
             body: JSON.stringify({
               ...(!cloudflare ? { model: requestedModel } : {}),
               stream: false,
-              response_format: responseFormat(activeProvider, stage),
+              response_format: responseFormat(activeProvider, stage, judgeIds),
               ...(!local ? { max_tokens: stage === 'write' ? 4096 : 2048 } : {}),
               ...(activeProvider === 'groq' ? { reasoning_effort: 'low', include_reasoning: false } : {}),
               ...(deepseek ? { thinking: { type: 'disabled' } } : {}),
@@ -134,6 +156,7 @@ export function createGenerateHandler({ env = process.env, fetchUpstream = fetch
           });
           upstreamStatus = upstream.status;
           attempt.upstreamStatus = upstream.status;
+          if (activeProvider === 'groq') attempt.quota = groqQuota(upstream.headers);
           const retryAfter = upstream.headers.get('retry-after');
           if (retryAfter && /^\d{1,5}$/.test(retryAfter) && Number(retryAfter) <= 86400) attempt.retryAfterSeconds = Number(retryAfter);
           if (!upstream.ok) {
@@ -142,49 +165,60 @@ export function createGenerateHandler({ env = process.env, fetchUpstream = fetch
             if (activeProvider === 'groq' && direct && [429, 500, 502, 503].includes(upstream.status)) {
               controller.signal.throwIfAborted();
               const required = mode === 'deep' ? deepFallbackCalls[stage ?? 'single'] : mode === 'smart' && stage === 'write' ? 2 : 1;
-              if (calls + required > maxCalls) throw new Error('AI_REQUEST_LIMIT');
+              const remaining = maxCalls - calls;
+              if (remaining < required) {
+                fallbackBudget = { stage: attempt.stage, remaining, required };
+                throw new Error('AI_REQUEST_LIMIT');
+              }
               activeProvider = 'cloudflare';
               activeTarget = direct.fallback;
-              return chat(messages, stage);
+              return chat(messages, stage, judgeIds);
             }
             throw new Error(upstream.status === 429 ? 'RATE_LIMITED' : 'UPSTREAM_ERROR');
           }
+          let body: string;
           try {
-            const envelope = JSON.parse(await readLimited(upstream, 32 * 1024, controller.signal));
-            if (cloudflare && envelope?.success !== true) throw new Error('INVALID_CONTENT');
-            const data = cloudflare ? envelope.result : envelope;
-            if (typeof data.model === 'string' && /^[\w./:-]{1,120}$/.test(data.model) && !containsKey(data.model)) { actualModel = data.model; attempt.actualModel = data.model; }
-            if (data.usage && typeof data.usage === 'object') {
-              const totals = {...usage};
-              const current: Record<string, number> = {};
-              for (const k of ['prompt_tokens','completion_tokens','total_tokens']) {
-                const n = data.usage[k], sum = (totals[k] ?? 0) + n;
-                if (Number.isSafeInteger(n) && n >= 0 && Number.isSafeInteger(sum)) { totals[k] = sum; current[k] = n; }
-              }
-              usage = totals;
-              attempt.usage = current;
+            body = await readLimited(upstream, 32 * 1024, controller.signal, bytes => { attempt.responseBytes = bytes; });
+          } catch (error) {
+            if (controller.signal.aborted) throw error;
+            throw new InvalidAIOutput(error instanceof Error && error.message === 'BODY_TOO_LARGE' ? 'PROVIDER_BODY_LIMIT' : 'PROVIDER_BODY_READ', attempt.stage);
+          }
+          try { return decodeProviderOutput(body, cloudflare, containsKey, attempt); }
+          catch (error) {
+            if (error instanceof InvalidAIOutput) throw new InvalidAIOutput(error.reason, attempt.stage);
+            throw error;
+          }
+        } finally {
+          attempt.durationMs = Date.now() - attemptStarted;
+          if (attempt.actualModel) actualModel = attempt.actualModel;
+          if (attempt.usage) {
+            const totals = { ...usage };
+            for (const [key, amount] of Object.entries(attempt.usage)) {
+              const sum = (totals[key] ?? 0) + amount;
+              if (Number.isSafeInteger(sum)) totals[key] = sum;
             }
-            const choice = data.choices?.[0];
-            if (choice && ((choice.finish_reason && choice.finish_reason !== 'stop') || choice.message?.refusal)) throw new Error('INVALID_CONTENT');
-            const content = !choice && cloudflare ? data.response : choice?.message?.content;
-            if (typeof content !== 'string' && (!cloudflare || choice || !content || typeof content !== 'object')) throw new Error('INVALID_CONTENT');
-            const value = typeof content === 'string' ? JSON.parse(content) : content;
-            if (containsKey(JSON.stringify(value))) throw new Error('INVALID_CONTENT');
-            return value;
-          } catch { throw new Error(controller.signal.aborted ? 'AI_TIMEOUT' : 'INVALID_AI_OUTPUT'); }
-        } finally { if (!attempt.durationMs) attempt.durationMs = Date.now() - attemptStarted; }
+            usage = totals;
+          }
+        }
       };
       let raw: unknown;
       try {
         if (mode === 'single') raw = await chat(buildMessages(input, brief));
         else raw = (await runPipeline({input,brief,mode:mode as 'smart'|'deep',chat,sequentialJudges:!!direct})).output;
       } catch (error) {
+        if (error instanceof InvalidAIOutput) outputError = { reason: error.reason, stage: error.stage };
         const code = controller.signal.aborted ? 'AI_TIMEOUT' : error instanceof Error && Object.hasOwn(errors,error.message) ? error.message as ErrorCode : 'AI_UNAVAILABLE';
         status = errors[code][0]; return failure(code);
       }
-      if (!raw || typeof raw !== 'object' || Array.isArray(raw) || Object.keys(raw).length !== 3) { status=502; return failure('INVALID_AI_OUTPUT'); }
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw) || Object.keys(raw).length !== 3) {
+        outputError = { reason: 'FINAL_OUTPUT', stage: 'final' };
+        status = 502; return failure('INVALID_AI_OUTPUT');
+      }
       const output = Object.fromEntries(Object.entries(raw).map(([name, values]) => [name, Array.isArray(values) ? values.map(value => typeof value === 'string' ? normalize(value) : value) : values]));
-      if (!validOutput(output) || Object.values(output).flat().some(containsKey)) { status=502; return failure('INVALID_AI_OUTPUT'); }
+      if (!validOutput(output) || Object.values(output).flat().some(text => containsKey(text))) {
+        outputError = { reason: 'FINAL_OUTPUT', stage: 'final' };
+        status = 502; return failure('INVALID_AI_OUTPUT');
+      }
       const report = scoreOutput(output,input,brief);
       // Heuristic diagnostics are not a factuality guarantee; never log text or details.
       diagnostics = {score:report.score,issues:report.issues.map(issue=>issue.code),calls};
@@ -195,7 +229,7 @@ export function createGenerateHandler({ env = process.env, fetchUpstream = fetch
       return failure(controller.signal.aborted ? 'AI_TIMEOUT' : 'AI_UNAVAILABLE');
     } finally {
       clearTimeout(timer); request.signal.removeEventListener('abort',abort); controller.abort(); inFlight = false;
-      log({ event: 'generate', status, upstreamStatus, durationMs: Date.now() - started, requestedModel: primary.model, actualModel, usage, mode, calls, attempts, ...(!direct ? {diagnostics} : {}) });
+      log({ event: 'generate', status, upstreamStatus, durationMs: Date.now() - started, requestedModel: primary.model, actualModel, usage, mode, calls, attempts, outputError, fallbackBudget, ...(!direct ? {diagnostics} : {}) });
     }
   };
 }
