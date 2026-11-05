@@ -3,9 +3,9 @@ import { buildBrief } from '../engine/context.ts';
 import { buildMessages } from '../engine/prompt.ts';
 import { scoreOutput } from '../engine/quality.ts';
 import { runPipeline, type StageName } from '../engine/pipeline.ts';
-import { stageFormat } from '../engine/schemas.ts';
+import { responseFormat } from '../engine/schemas.ts';
 import { deepseekConfig } from './deepseek.ts';
-import { geminiConfig } from './gemini.ts';
+import { groqConfig } from './groq.ts';
 import type { Input } from '../content.ts';
 
 type Options = { env?: Record<string, string | undefined>; fetchUpstream?: typeof fetch; timeoutMs?: number; log?: (data: unknown) => void };
@@ -47,10 +47,9 @@ async function readLimited(message: Request | Response, limit: number, signal: A
   finally { signal.removeEventListener('abort', cancel); reader.releaseLock(); }
 }
 
-const geminiFormat = { type: 'json_schema', json_schema: { name: 'content_set', strict: true, schema: {
-  type: 'object', additionalProperties: false, required: ['captions', 'headlines', 'hashtags'],
-  properties: Object.fromEntries(['captions', 'headlines', 'hashtags'].map((name, i) => [name, { type: 'array', items: { type: 'string' }, minItems: [3, 3, 5][i], maxItems: [3, 3, 5][i] }])),
-} } };
+// Reserve the failed stage and both judge rounds that still lie ahead.
+// Polish depends on the selected judges' fixes and is counted if requested.
+const deepFallbackCalls = { write: 3, judge: 2, 'judge-reverse': 1, polish: 1, single: 1 };
 
 export function createGenerateHandler({ env = process.env, fetchUpstream = fetch, timeoutMs = generationTimeoutMs, log = console.info }: Options = {}) {
   // shortcut: guard chỉ dùng cho một process local; cần cơ chế dùng chung trước khi triển khai nhiều instance.
@@ -80,15 +79,17 @@ export function createGenerateHandler({ env = process.env, fetchUpstream = fetch
       input = cleanInput(data as Input);
       if (Object.keys(validate(input)).length) return failure('INVALID_INPUT');
     } catch { return failure('INVALID_INPUT'); }
-    const provider = env.AI_PROVIDER ?? 'freellmapi', gemini = provider === 'gemini', deepseek = provider === 'deepseek';
-    const ds = deepseek ? deepseekConfig(env) : undefined;
-    const google = gemini ? geminiConfig(env) : undefined;
+    const provider = env.AI_PROVIDER ?? 'freellmapi';
+    const deepseek = provider === 'deepseek' ? deepseekConfig(env) : undefined;
+    const direct = provider === 'groq' ? groqConfig(env) : undefined;
+    const localKey = env.FREELLMAPI_API_KEY;
+    const local = provider === 'freellmapi' && localKey && /^[\x21-\x7e]{1,512}$/.test(localKey) &&
+      env.FREELLMAPI_BASE_URL === 'http://127.0.0.1:31415/v1' && env.FREELLMAPI_MODEL === 'auto'
+      ? { key: localKey, model: 'auto', url: 'http://127.0.0.1:31415/v1/chat/completions' }
+      : undefined;
+    const primary = direct ?? deepseek ?? local;
     const mode = env.CAPTION_PIPELINE ?? 'deep';
-    if (!['single', 'smart', 'deep'].includes(mode)) return failure('AI_NOT_CONFIGURED');
-    const key = deepseek ? ds?.key : gemini ? google?.key : env.FREELLMAPI_API_KEY;
-    const model = deepseek ? ds?.model : gemini ? google?.model : env.FREELLMAPI_MODEL;
-    if (!['gemini', 'freellmapi', 'deepseek'].includes(provider) || !key || !/^[\x21-\x7e]{1,512}$/.test(key) ||
-      (deepseek ? !ds : gemini ? !google : env.FREELLMAPI_BASE_URL !== 'http://127.0.0.1:31415/v1' || model !== 'auto')) return failure('AI_NOT_CONFIGURED');
+    if (!primary || !['single', 'smart', 'deep'].includes(mode)) return failure('AI_NOT_CONFIGURED');
     if (inFlight) return failure('RATE_LIMITED');
     inFlight = true;
     const controller = new AbortController(), started = Date.now();
@@ -97,6 +98,7 @@ export function createGenerateHandler({ env = process.env, fetchUpstream = fetch
     if (request.signal.aborted) abort();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     let calls = 0;
+    const maxCalls = mode === 'single' ? 1 : mode === 'smart' ? 2 : 4;
     const attempts: {stage: StageName | 'single'; provider: string; requestedModel?: string; upstreamStatus?: number; actualModel?: string; retryAfterSeconds?: number; durationMs: number; usage?: Record<string, number>}[] = [];
     let diagnostics: {score:number;issues:string[];calls:number} | undefined;
     let status = 503, upstreamStatus: number | undefined, actualModel: string | undefined, usage: Record<string, number> | undefined;
@@ -104,24 +106,31 @@ export function createGenerateHandler({ env = process.env, fetchUpstream = fetch
       controller.signal.throwIfAborted();
       const brief = buildBrief(input);
       let activeProvider = provider;
-      const containsKey = (text: string) => [key, google?.fallback?.key].some(secret => secret && text.includes(secret));
+      let activeTarget = primary;
+      const containsKey = (text: string) => text.includes(primary.key) || !!(direct && text.includes(direct.fallback.key));
       const chat = async (messages: readonly {role: string; content: string}[], stage?: StageName): Promise<unknown> => {
         controller.signal.throwIfAborted();
         // Count dispatched attempts, including HTTP failures. Never dispatch a fifth inference.
-        if (calls >= (mode === 'single' ? 1 : mode === 'smart' ? 2 : 4)) throw new Error('AI_REQUEST_LIMIT');
-        const groq = activeProvider === 'groq', target = groq ? google!.fallback! : gemini ? google! : ds;
-        const requestedModel = groq ? target!.model : model;
+        if (calls >= maxCalls) throw new Error('AI_REQUEST_LIMIT');
+        const cloudflare = activeProvider === 'cloudflare';
+        const target = activeTarget;
+        const requestedModel = target.model;
         const attempt: typeof attempts[number] = {stage: stage ?? 'single', provider: activeProvider, requestedModel, durationMs: 0};
         attempts.push(attempt); calls++;
         const attemptStarted = Date.now();
         try {
-          const upstream = await fetchUpstream(target?.url ?? 'http://127.0.0.1:31415/v1/chat/completions', {
+          const upstream = await fetchUpstream(target.url, {
             method: 'POST', redirect: 'error', cache: 'no-store', signal: controller.signal,
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${target?.key ?? key}` },
-            body: JSON.stringify({ model: requestedModel, stream: false,
-              response_format: stage ? stageFormat(stage, activeProvider) : gemini ? geminiFormat : {type:'json_object'},
-              ...((deepseek || gemini) ? {max_tokens:stage === 'write' ? 4096 : 2048} : {}),
-              ...(groq ? {reasoning_effort:'low',include_reasoning:false} : deepseek ? {thinking:{type:'disabled'}} : gemini ? {reasoning_effort:'low'} : {}), messages }),
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${target.key}` },
+            body: JSON.stringify({
+              ...(!cloudflare ? { model: requestedModel } : {}),
+              stream: false,
+              response_format: responseFormat(activeProvider, stage),
+              ...(!local ? { max_tokens: stage === 'write' ? 4096 : 2048 } : {}),
+              ...(activeProvider === 'groq' ? { reasoning_effort: 'low', include_reasoning: false } : {}),
+              ...(deepseek ? { thinking: { type: 'disabled' } } : {}),
+              messages,
+            }),
           });
           upstreamStatus = upstream.status;
           attempt.upstreamStatus = upstream.status;
@@ -130,16 +139,20 @@ export function createGenerateHandler({ env = process.env, fetchUpstream = fetch
           if (!upstream.ok) {
             void upstream.body?.cancel().catch(() => {});
             // Only known availability HTTP statuses may change provider. Never network/timeout/abort/JSON errors.
-            if (activeProvider === 'gemini' && google?.fallback && [429,500,502,503].includes(upstream.status)) {
+            if (activeProvider === 'groq' && direct && [429, 500, 502, 503].includes(upstream.status)) {
               controller.signal.throwIfAborted();
-              activeProvider = 'groq';
-              attempt.durationMs = Date.now() - attemptStarted;
+              const required = mode === 'deep' ? deepFallbackCalls[stage ?? 'single'] : mode === 'smart' && stage === 'write' ? 2 : 1;
+              if (calls + required > maxCalls) throw new Error('AI_REQUEST_LIMIT');
+              activeProvider = 'cloudflare';
+              activeTarget = direct.fallback;
               return chat(messages, stage);
             }
             throw new Error(upstream.status === 429 ? 'RATE_LIMITED' : 'UPSTREAM_ERROR');
           }
           try {
-            const data = JSON.parse(await readLimited(upstream, 32 * 1024, controller.signal));
+            const envelope = JSON.parse(await readLimited(upstream, 32 * 1024, controller.signal));
+            if (cloudflare && envelope?.success !== true) throw new Error('INVALID_CONTENT');
+            const data = cloudflare ? envelope.result : envelope;
             if (typeof data.model === 'string' && /^[\w./:-]{1,120}$/.test(data.model) && !containsKey(data.model)) { actualModel = data.model; attempt.actualModel = data.model; }
             if (data.usage && typeof data.usage === 'object') {
               const totals = {...usage};
@@ -152,15 +165,19 @@ export function createGenerateHandler({ env = process.env, fetchUpstream = fetch
               attempt.usage = current;
             }
             const choice = data.choices?.[0];
-            if (!choice || (choice.finish_reason && choice.finish_reason !== 'stop') || typeof choice.message?.content !== 'string' || containsKey(choice.message.content)) throw new Error('INVALID_CONTENT');
-            return JSON.parse(choice.message.content);
+            if (choice && ((choice.finish_reason && choice.finish_reason !== 'stop') || choice.message?.refusal)) throw new Error('INVALID_CONTENT');
+            const content = !choice && cloudflare ? data.response : choice?.message?.content;
+            if (typeof content !== 'string' && (!cloudflare || choice || !content || typeof content !== 'object')) throw new Error('INVALID_CONTENT');
+            const value = typeof content === 'string' ? JSON.parse(content) : content;
+            if (containsKey(JSON.stringify(value))) throw new Error('INVALID_CONTENT');
+            return value;
           } catch { throw new Error(controller.signal.aborted ? 'AI_TIMEOUT' : 'INVALID_AI_OUTPUT'); }
         } finally { if (!attempt.durationMs) attempt.durationMs = Date.now() - attemptStarted; }
       };
       let raw: unknown;
       try {
         if (mode === 'single') raw = await chat(buildMessages(input, brief));
-        else raw = (await runPipeline({input,brief,mode:mode as 'smart'|'deep',chat,sequentialJudges:!!google?.fallback})).output;
+        else raw = (await runPipeline({input,brief,mode:mode as 'smart'|'deep',chat,sequentialJudges:!!direct})).output;
       } catch (error) {
         const code = controller.signal.aborted ? 'AI_TIMEOUT' : error instanceof Error && Object.hasOwn(errors,error.message) ? error.message as ErrorCode : 'AI_UNAVAILABLE';
         status = errors[code][0]; return failure(code);
@@ -178,7 +195,7 @@ export function createGenerateHandler({ env = process.env, fetchUpstream = fetch
       return failure(controller.signal.aborted ? 'AI_TIMEOUT' : 'AI_UNAVAILABLE');
     } finally {
       clearTimeout(timer); request.signal.removeEventListener('abort',abort); controller.abort(); inFlight = false;
-      log({ event: 'generate', status, upstreamStatus, durationMs: Date.now() - started, requestedModel: model, actualModel, usage, mode, calls, attempts, ...(!google?.fallback ? {diagnostics} : {}) });
+      log({ event: 'generate', status, upstreamStatus, durationMs: Date.now() - started, requestedModel: primary.model, actualModel, usage, mode, calls, attempts, ...(!direct ? {diagnostics} : {}) });
     }
   };
 }

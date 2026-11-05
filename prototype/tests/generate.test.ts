@@ -4,7 +4,7 @@ import { createGenerateHandler } from '../lib/server/generate.ts';
 import { sampleInput, getSample } from '../lib/samples.ts';
 
 const env = { CAPTION_PIPELINE: 'single', FREELLMAPI_BASE_URL: 'http://127.0.0.1:31415/v1', FREELLMAPI_MODEL: 'auto', FREELLMAPI_API_KEY: 'test-secret-only' };
-const geminiEnv = { ...env, AI_PROVIDER: 'gemini', GEMINI_MODEL: 'gemini-3.8-flash', GEMINI_API_KEY: 'test-secret-only' };
+const groqEnv = { ...env, AI_PROVIDER: 'groq', GROQ_MODEL: 'openai/gpt-oss-120b', GROQ_API_KEY: 'test-secret-only', CLOUDFLARE_ACCOUNT_ID: '0123456789abcdef0123456789abcdef', CLOUDFLARE_API_TOKEN: 'test-fallback-token' };
 const output = getSample(0);
 const request = (body: unknown = sampleInput, headers = {}, url = 'http://127.0.0.1:3000/api/generate') => new Request(url, {
   method: 'POST', headers: { 'content-type': 'application/json', origin: 'http://127.0.0.1:3000', ...headers }, body: JSON.stringify(body),
@@ -148,96 +148,95 @@ test('editorial excess remains usable; untrusted metadata is not logged', async 
   assert.doesNotMatch(JSON.stringify(logs), /test-secret-only|UPSTREAM_PRIVATE/);
 });
 
-test('Gemini uses the fixed Google REST endpoint, server model/key and structured JSON; logs only metadata', async () => {
+test('Groq uses the fixed REST endpoint, server model/key and structured JSON; logs only metadata', async () => {
   const logs: unknown[] = [];
   let calls = 0;
   const run = handler((async (url, options) => {
     calls++;
-    assert.equal(String(url), 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions');
+    assert.equal(String(url), 'https://api.groq.com/openai/v1/chat/completions');
     assert.equal(options?.redirect, 'error');
     assert.equal(new Headers(options?.headers).get('authorization'), 'Bearer test-secret-only');
     const body = JSON.parse(String(options?.body));
-    assert.equal(body.model, 'gemini-3.8-flash');
+    assert.equal(body.model, 'openai/gpt-oss-120b');
     assert.equal(body.reasoning_effort, 'low');
     assert.equal(body.stream, false);
     assert.equal(body.response_format.type, 'json_schema');
     const schema = body.response_format.json_schema.schema;
     assert.deepEqual(schema.required, ['captions', 'headlines', 'hashtags']);
     assert.equal(schema.additionalProperties, false);
-    for (const [name, size] of [['captions', 3], ['headlines', 3], ['hashtags', 5]] as const) {
-      assert.equal(schema.properties[name].minItems, size);
-      assert.equal(schema.properties[name].maxItems, size);
+    for (const name of ['captions', 'headlines', 'hashtags']) {
+      assert.deepEqual(schema.properties[name], { type: 'array', items: { type: 'string' } });
     }
     assert.equal(JSON.parse(body.messages[1].content).productName, 'á');
     assert.doesNotMatch(String(options?.body), /test-secret-only/);
     return new Response(envelope());
-  }) as typeof fetch, { env: geminiEnv, log: (data: unknown) => logs.push(data) });
+  }) as typeof fetch, { env: groqEnv, log: (data: unknown) => logs.push(data) });
   assert.deepEqual(await (await run(request({ ...sampleInput, productName: ' a\u0301 ' }))).json(), output);
   assert.equal(calls, 1);
-  assert.equal((logs[0] as { requestedModel: string }).requestedModel, 'gemini-3.8-flash');
+  assert.equal((logs[0] as { requestedModel: string }).requestedModel, 'openai/gpt-oss-120b');
   assert.equal((logs[0] as { actualModel: string }).actualModel, 'test/model');
   assert.doesNotMatch(JSON.stringify(logs), /test-secret-only|captions|messages/);
 });
 
-test('Gemini configuration fails closed, with no fallback to the configured local router', async () => {
+test('Groq configuration fails closed, with no fallback to the configured local router', async () => {
   let calls = 0;
-  for (const change of [{ GEMINI_API_KEY: '' }, { GEMINI_API_KEY: 'bad\nkey' }, { GEMINI_MODEL: 'unapproved-model' }, { GEMINI_MODEL: 'gemini-3.8-flash/../../other' }, { AI_PROVIDER: 'unknown' }]) {
-    await failure(await handler((async () => { calls++; return new Response(envelope()); }) as typeof fetch, { env: { ...geminiEnv, ...change } })(request()), 503, 'AI_NOT_CONFIGURED');
+  for (const change of [{ GROQ_API_KEY: '' }, { GROQ_API_KEY: 'bad\nkey' }, { GROQ_MODEL: 'unapproved-model' }, { GROQ_MODEL: 'openai/gpt-oss-120b/../../other' }, { AI_PROVIDER: 'unknown' }]) {
+    await failure(await handler((async () => { calls++; return new Response(envelope()); }) as typeof fetch, { env: { ...groqEnv, ...change } })(request()), 503, 'AI_NOT_CONFIGURED');
   }
   assert.equal(calls, 0);
 });
 
-test('Gemini trims accidental surrounding whitespace from server configuration but rejects embedded control characters', async () => {
+test('Groq trims accidental surrounding whitespace from server configuration but rejects embedded control characters', async () => {
   let calls = 0;
   const upstream = (async (_url, options) => {
     calls++;
     assert.equal(new Headers(options?.headers).get('authorization'), 'Bearer test-secret-only');
     return new Response(envelope());
   }) as typeof fetch;
-  assert.equal((await handler(upstream, { env: { ...geminiEnv, GEMINI_API_KEY: ' \r\ntest-secret-only\n ' } })(request())).status, 200);
-  await failure(await handler(upstream, { env: { ...geminiEnv, GEMINI_API_KEY: 'test\nsecret-only' } })(request()), 503, 'AI_NOT_CONFIGURED');
+  assert.equal((await handler(upstream, { env: { ...groqEnv, GROQ_API_KEY: ' \r\ntest-secret-only\n ' } })(request())).status, 200);
+  await failure(await handler(upstream, { env: { ...groqEnv, GROQ_API_KEY: 'test\nsecret-only' } })(request()), 503, 'AI_NOT_CONFIGURED');
   assert.equal(calls, 1);
 });
 
-test('Gemini aliases and Lite models fail closed without catalog or inference requests', async () => {
-  for (const model of ['auto', 'gemini-3.1-flash-lite', 'gemini-3.5-flash-lite', 'gemini-3.6-flash']) {
+test('Groq model aliases fail closed before inference', async () => {
+  for (const model of ['auto', 'openai/gpt-oss-20b', 'llama-3.3-70b-versatile']) {
     let calls = 0;
-    const run = handler((async () => { calls++; throw new Error('MUST_NOT_CALL'); }) as typeof fetch, { env: { ...geminiEnv, GEMINI_MODEL: model } });
+    const run = handler((async () => { calls++; throw new Error('MUST_NOT_CALL'); }) as typeof fetch, { env: { ...groqEnv, GROQ_MODEL: model } });
     await failure(await run(request()), 503, 'AI_NOT_CONFIGURED');
     assert.equal(calls, 0);
   }
 });
-test('Gemini rejects invalid input and injected provider controls before upstream', async () => {
+test('Groq rejects invalid input and injected provider controls before upstream', async () => {
   let calls = 0;
-  const run = handler((async () => { calls++; return new Response(envelope()); }) as typeof fetch, { env: geminiEnv });
+  const run = handler((async () => { calls++; return new Response(envelope()); }) as typeof fetch, { env: groqEnv });
   for (const body of [{ ...sampleInput, model: 'other' }, { ...sampleInput, productName: '' }, { ...sampleInput, description: 'a'.repeat(1001) }, { ...sampleInput, tone: 'unknown' }]) await failure(await run(request(body)), 422, 'INVALID_INPUT');
   await failure(await run(request(sampleInput, { origin: 'https://evil.example' })), 422, 'INVALID_INPUT');
   assert.equal(calls, 0);
 });
 
-test('Gemini HTTP errors, quota and network failure never retry, leak or fall back', async () => {
+test('Single mode maps Groq HTTP and network errors within one attempt', async () => {
   for (const status of [400, 401, 402, 403, 404, 429, 500, 503, 302]) {
     let calls = 0;
     const logs: { upstreamStatus?: number }[] = [];
-    const run = handler((async () => { calls++; return new Response('UPSTREAM_PRIVATE test-secret-only', { status }); }) as typeof fetch, { env: geminiEnv, log: (data: { upstreamStatus?: number }) => logs.push(data) });
-    await failure(await run(request()), status === 429 ? 429 : 502, status === 429 ? 'RATE_LIMITED' : 'UPSTREAM_ERROR');
+    const run = handler((async () => { calls++; return new Response('UPSTREAM_PRIVATE test-secret-only', { status }); }) as typeof fetch, { env: groqEnv, log: (data: { upstreamStatus?: number }) => logs.push(data) });
+    await failure(await run(request()), 502, [429, 500, 503].includes(status) ? 'AI_REQUEST_LIMIT' : 'UPSTREAM_ERROR');
     assert.equal(calls, 1);
     assert.equal(logs[0].upstreamStatus, status);
     assert.doesNotMatch(JSON.stringify(logs), /UPSTREAM_PRIVATE|test-secret-only/);
   }
-  await failure(await handler((async () => { throw new Error('UPSTREAM_PRIVATE'); }) as typeof fetch, { env: geminiEnv })(request()), 503, 'AI_UNAVAILABLE');
+  await failure(await handler((async () => { throw new Error('UPSTREAM_PRIVATE'); }) as typeof fetch, { env: groqEnv })(request()), 503, 'AI_UNAVAILABLE');
 });
 
-test('Gemini untrusted JSON, counts, duplicate hashtags, refusal and truncation fail clearly', async () => {
+test('Groq untrusted JSON, counts, duplicate hashtags, refusal and truncation fail clearly', async () => {
   for (const body of ['not JSON', 'null', envelope({ ...output, captions: ['one'] }), envelope({ ...output, hashtags: ['#a', '#A', '#b', '#c', '#d'] }), envelope({ ...output, safe: true }), envelope({ ...output, headlines: ['test-secret-only', 'b', 'c'] }), JSON.stringify({ choices: [{ finish_reason: 'length', message: { content: JSON.stringify(output) } }] }), JSON.stringify({ choices: [{ finish_reason: 'content_filter', message: { content: null } }] })]) {
-    await failure(await handler(fake(body), { env: geminiEnv })(request()), 502, 'INVALID_AI_OUTPUT');
+    await failure(await handler(fake(body), { env: groqEnv })(request()), 502, 'INVALID_AI_OUTPUT');
   }
 });
 
-test('Gemini response byte cap and whole-request timeout cancel the response without another call', async () => {
-  await failure(await handler(fake('á'.repeat(18000)), { env: geminiEnv })(request()), 502, 'INVALID_AI_OUTPUT');
+test('Groq response byte cap and whole-request timeout cancel the response without another call', async () => {
+  await failure(await handler(fake('á'.repeat(18000)), { env: groqEnv })(request()), 502, 'INVALID_AI_OUTPUT');
   let calls = 0, cancelled = false;
-  const run = handler((async () => { calls++; return new Response(new ReadableStream({ cancel() { cancelled = true; } })); }) as typeof fetch, { env: geminiEnv, timeoutMs: 15 });
+  const run = handler((async () => { calls++; return new Response(new ReadableStream({ cancel() { cancelled = true; } })); }) as typeof fetch, { env: groqEnv, timeoutMs: 15 });
   await failure(await run(request()), 504, 'AI_TIMEOUT');
   assert.equal(calls, 1);
   assert.equal(cancelled, true);
@@ -246,7 +245,7 @@ test('Gemini response byte cap and whole-request timeout cancel the response wit
 test('HTTPS generation accepts only the configured exact URL/Host/Origin, ignoring forwarded headers', async () => {
   const origin = 'https://caption-preview.example';
   let calls = 0;
-  const run = handler((async () => { calls++; return new Response(envelope()); }) as typeof fetch, { env: { ...geminiEnv, APP_ORIGIN: origin } });
+  const run = handler((async () => { calls++; return new Response(envelope()); }) as typeof fetch, { env: { ...groqEnv, APP_ORIGIN: origin } });
   const headers = { origin, host: 'caption-preview.example' };
   assert.equal((await run(request(sampleInput, headers, origin + '/api/generate'))).status, 200);
   for (const [url, change] of [
@@ -267,10 +266,10 @@ test('Vercel preview trusts its exact system URL, fails closed without one, and 
   const fetchUpstream = (async () => {calls++;return new Response(envelope());}) as typeof fetch;
   const origin = 'https://caption-preview.vercel.app';
   const online = request(sampleInput,{origin,host:'caption-preview.vercel.app'},origin+'/api/generate');
-  assert.equal((await handler(fetchUpstream,{env:{...geminiEnv,VERCEL_ENV:'preview',VERCEL_URL:'caption-preview.vercel.app'}})(online.clone())).status,200);
-  await failure(await handler(fetchUpstream,{env:{AI_PROVIDER:'gemini',GEMINI_MODEL:'gemini-3.8-flash',VERCEL_ENV:'preview',VERCEL_URL:'caption-preview.vercel.app'}})(online.clone()),503,'AI_NOT_CONFIGURED');
+  assert.equal((await handler(fetchUpstream,{env:{...groqEnv,VERCEL_ENV:'preview',VERCEL_URL:'caption-preview.vercel.app'}})(online.clone())).status,200);
+  await failure(await handler(fetchUpstream,{env:{AI_PROVIDER:'groq',GROQ_MODEL:'openai/gpt-oss-120b',VERCEL_ENV:'preview',VERCEL_URL:'caption-preview.vercel.app'}})(online.clone()),503,'AI_NOT_CONFIGURED');
   for(const change of [{APP_ORIGIN:'http://caption-preview.example'},{APP_ORIGIN:'https://user:pass@caption-preview.example'},{APP_ORIGIN:'https://caption-preview.example/path'},{APP_ORIGIN:'https://caption-preview.example?x=1'},{VERCEL_ENV:'preview',VERCEL_URL:undefined},{VERCEL_ENV:'preview',VERCEL_URL:'evil.example/path'}]) {
-    await failure(await handler(fetchUpstream,{env:{...geminiEnv,...change}})(request()),503,'AI_NOT_CONFIGURED');
+    await failure(await handler(fetchUpstream,{env:{...groqEnv,...change}})(request()),503,'AI_NOT_CONFIGURED');
   }
   assert.equal(calls,1);
 });

@@ -1,8 +1,6 @@
 import type { StageName } from './pipeline.ts';
 
-// Schema JSON strict cho từng agent. Gemini (endpoint OpenAI-compat của project) đã chạy được `json_schema` strict ở đường 1 lượt,
-// nên các bước agent dùng cùng cơ chế đó thay vì `json_object`. Mọi trường đều bắt buộc, không khóa động; ràng buộc giá trị
-// (thang 1–5, số phần tử…) do parser trong agents.ts kiểm lại vì không phải provider nào cũng thực thi min/max.
+// Mọi trường đều bắt buộc. Parser của app kiểm số phần tử, thang điểm và các ràng buộc nội dung.
 const str = { type: 'string' };
 const strings = { type: 'array', items: str };
 const object = (properties: Record<string, unknown>) => ({ type: 'object', additionalProperties: false, required: Object.keys(properties), properties });
@@ -28,8 +26,11 @@ const polish = object({ captions: strings });
 
 const schemas = { write: ['writer_pool', writer], judge: ['judge_scores', judge], 'judge-reverse': ['judge_scores', judge], polish: ['polish_captions', polish] } as const;
 
-export function stageFormat(stage: StageName, providerId: string): { type: string; json_schema?: unknown } {
-  if (providerId !== 'gemini' && providerId !== 'groq') return { type: 'json_object' };
-  const [name, schema] = schemas[stage];
+const contentSet = object({ captions: strings, headlines: strings, hashtags: strings });
+
+export function responseFormat(providerId: string, stage?: StageName): { type: string; json_schema?: unknown } {
+  if (providerId !== 'cloudflare' && providerId !== 'groq') return { type: 'json_object' };
+  const [name, schema] = stage ? schemas[stage] : ['content_set', contentSet];
+  if (providerId === 'cloudflare') return { type: 'json_schema', json_schema: schema };
   return { type: 'json_schema', json_schema: { name, strict: true, schema } };
 }
