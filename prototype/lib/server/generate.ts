@@ -151,6 +151,7 @@ export function createGenerateHandler({ env = process.env, fetchUpstream = fetch
               response_format: responseFormat(activeProvider, stage, judgeIds),
               ...(!local ? { max_tokens: stage === 'write' ? 4096 : 2048 } : {}),
               ...(activeProvider === 'groq' ? { reasoning_effort: 'low', include_reasoning: false } : {}),
+              ...(activeProvider === 'groq' && mode === 'single' ? { temperature: 0.2 } : {}),
               ...(deepseek ? { thinking: { type: 'disabled' } } : {}),
               messages,
             }),
