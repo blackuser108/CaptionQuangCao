@@ -39,6 +39,11 @@ test('Groq defaults to a complete Single response using one upstream call', asyn
   assert.equal(f.calls.length, 1);
   assert.equal(f.logs[0].mode, 'single');
   assert.equal(f.calls[0].body.response_format.json_schema.name, 'content_set');
+  const payload = JSON.parse(f.calls[0].body.messages[1].content);
+  assert.equal(payload.toneInput, sampleInput.tone);
+  assert.equal(payload.description, sampleInput.description);
+  assert.equal(payload.tone, undefined);
+  assert.equal(payload.strategies, undefined);
 });
 
 test('Single switches once from Groq availability failures and validates a real-shaped Cloudflare response', async () => {
