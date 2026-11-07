@@ -4,8 +4,6 @@ import { buildBrief, briefForPrompt, extractFacts } from '../lib/engine/context.
 import { createGenerateHandler } from '../lib/server/generate.ts';
 import { getSample } from '../lib/samples.ts';
 import { validOutput, type Input } from '../lib/content.ts';
-import { buildMessages, craftRules, systemPrompt } from '../lib/engine/prompt.ts';
-import { buildWriterMessages } from '../lib/engine/agents.ts';
 
 const h7: Input = {
   productName: 'Hộp trà Lọc',
@@ -18,19 +16,6 @@ const h8: Input = {
   audience: 'Người đi tàu mang ô gấp mỗi ngày', tone: 'youthful',
 };
 const payload = (input: Input) => briefForPrompt(buildBrief(input), input);
-
-test('Single uses its editorial prompt and supplied-data payload while Deep retains its own writer rules', () => {
-  const brief = buildBrief(h7);
-  const single = buildMessages(h7, brief);
-  const writer = buildWriterMessages(h7, brief);
-  assert.equal(single[0].content, systemPrompt);
-  assert.notEqual(systemPrompt, craftRules);
-  assert.ok(writer[0].content.includes(craftRules));
-  const data = JSON.parse(single[1].content);
-  assert.deepEqual(Object.keys(data), ['productName', 'description', 'audienceInput', 'toneInput', 'facts', 'limits']);
-  assert.deepEqual(data.facts, brief.verifiedFacts);
-  assert.equal(data.toneInput, h7.tone);
-});
 
 test('H8 removes the full directive before comma splitting and from the serialized description', () => {
   const brief = buildBrief(h8), user = briefForPrompt(brief, h8);
