@@ -1,4 +1,7 @@
 # CaptionQuangCao
+
+Mô tả gửi AI được lọc theo một số mẫu mệnh lệnh trước khi trích facts. Cả description và facts cùng bỏ mệnh lệnh và phần tiếp theo trong câu để tránh nâng phần còn lại thành đặc tính sản phẩm. Các mệnh đề dữ kiện đứng trước dấu phẩy được giữ. Văn bản được nêu rõ là chữ trên nhãn được giữ như dữ liệu trích dẫn. Bộ lọc có phạm vi hẹp, có thể bỏ sót cách viết khác hoặc loại câu nhập nhằng. Tên sản phẩm và đối tượng vẫn là dữ liệu không đáng tin. Kiểm thử giả xác nhận biến đổi payload và hợp đồng 3/3/5, chưa chứng minh AI sẽ giữ đúng dữ kiện hoặc hạn “đến”/“trước” ở đầu ra.
+
 **Cấu hình Groq và Cloudflare Workers AI trong source.** Đặt `AI_PROVIDER=groq` để gọi trực tiếp `openai/gpt-oss-120b`. Cloudflare dự phòng dùng `@cf/qwen/qwen3-30b-a3b-fp8` qua Workers AI REST API. Cấu hình hai khóa server `GROQ_API_KEY`, `CLOUDFLARE_API_TOKEN` và `CLOUDFLARE_ACCOUNT_ID` theo `.env.example`.
 
 Deep có tối đa bốn lượt, tính cả lỗi. Server chỉ chuyển nhà cung cấp khi đủ lượt cho bước đang lỗi, các lượt chấm còn lại và cả polish nếu cần. Với quy trình Deep hiện tại, một lỗi từ Groq làm thiếu ngân sách này. App dừng, báo lỗi và giữ bản nháp. Kết quả thành công vẫn qua validator 3 caption, 3 headline và 5 hashtag.

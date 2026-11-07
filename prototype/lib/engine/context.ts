@@ -21,22 +21,57 @@ export function classifyCategory(text: string) {
   return { id, confidence: id === 'generic' ? Math.min(confidence, 0.4) : confidence, rule: categoryById[id] };
 }
 
+// Keep label quotations intact when splitting; an isolated quoted command is still a directive.
+function maskQuotedText(text: string, labelsOnly = false) {
+  return text.replace(/"[^"]*"|“[^”]*”|‘[^’]*’|'[^']*'|«[^»]*»/gu, (quote, offset: number) => {
+    const prefix = text.slice(0, offset);
+    const label = /(?:nhãn|bìa|bao bì|chữ|câu|thông điệp)(?:\s+\p{L}+){0,4}\s*[:=]?\s*$/iu.test(prefix);
+    return !labelsOnly || label ? '_'.repeat(quote.length) : quote;
+  });
+}
+
+function splitOutsideQuotes(text: string, separator: RegExp) {
+  const parts: string[] = [];
+  let start = 0;
+  for (const match of maskQuotedText(text).matchAll(separator)) {
+    parts.push(text.slice(start, match.index));
+    start = match.index + match[0].length;
+  }
+  parts.push(text.slice(start));
+  return parts;
+}
+
+// A narrow set of instruction leads, not a general prompt-injection detector.
+const instructionStart = /(?:bỏ qua (?:mọi )?(?:hướng dẫn|prompt|quy tắc)|ignore (?:all )?(?:previous|above|system)|forget (?:your|the) (?:rules|instructions)|output only|bịa (?:thêm )?(?:chứng nhận|ưu đãi|kết quả|giá)|hãy (?:giả sử đã có|nói|viết|khẳng định|bịa))(?=\s|$|[,:;.!?”"'’»])/iu;
+
+function promptDescription(description: string) {
+  let changed = false;
+  const parts = splitOutsideQuotes(description, /(?<=[.!?])\s+|[\r\n;•]+/gu).map(sentence => {
+    const command = instructionStart.exec(maskQuotedText(sentence, true));
+    if (!command) return sentence;
+    changed = true;
+    // Keep preceding product clauses, quarantine the instruction and its comma continuations.
+    const preceding = sentence.slice(0, command.index);
+    return preceding.slice(0, Math.max(0, preceding.lastIndexOf(','))).trimEnd();
+  });
+  return changed ? parts.filter(part => part.trim()).join('\n').trim() : description;
+}
+
 function splitFacts(text: string) {
-  return text.split(/[.;\n•]+/g).flatMap(part => part.split(/,(?=\s)/g)).map(part => part.trim()).filter(part => part.length >= 3 && part.length <= 180);
+  return splitOutsideQuotes(text, /\.(?=\s|$)|[;\n•]+|,(?=\s)/gu)
+    .map(part => part.trim()).filter(part => part.length >= 3 && part.length <= 180);
 }
 
 export function extractFacts(input: Input): ProductFact[] {
-  const injection = looksLikeInjection(`${input.productName}\n${input.description}`);
   const seen = new Set<string>();
   const facts: ProductFact[] = [];
-  for (const raw of [input.productName, ...splitFacts(input.description)]) {
+  for (const raw of [input.productName, ...splitFacts(promptDescription(input.description))]) {
     const text = raw.replace(/\s+/g, ' ').trim();
     const key = fold(text);
-    if (!text || seen.has(key) || looksLikeInjection(text)) continue;
+    if (!text || seen.has(key) || instructionStart.test(maskQuotedText(text, true))) continue;
     seen.add(key);
     facts.push({ text, kind: 'fact', confidence: 1 });
   }
-  if (injection) return facts.filter(fact => !looksLikeInjection(fact.text));
   return facts;
 }
 
@@ -247,7 +282,7 @@ export function buildBrief(input: Input, seed = 0): CampaignBrief {
 
 export function briefForPrompt(brief: CampaignBrief, input: Input) {
   return {
-    productName: input.productName, description: input.description,
+    productName: input.productName, description: promptDescription(input.description),
     audienceInput: input.audience, toneInput: input.tone,
     facts: brief.verifiedFacts,
     tone: { id: brief.tone.id, voice: brief.tone.voice, devices: brief.tone.devices, emojiPolicy: brief.tone.emojiPolicy },
