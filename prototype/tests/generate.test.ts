@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createGenerateHandler } from '../lib/server/generate.ts';
 import { sampleInput, getSample } from '../lib/samples.ts';
+import { systemPrompt } from '../lib/engine/prompt.ts';
 
 const env = { CAPTION_PIPELINE: 'single', FREELLMAPI_BASE_URL: 'http://127.0.0.1:31415/v1', FREELLMAPI_MODEL: 'auto', FREELLMAPI_API_KEY: 'test-secret-only' };
 const groqEnv = { ...env, AI_PROVIDER: 'groq', GROQ_MODEL: 'openai/gpt-oss-120b', GROQ_API_KEY: 'test-secret-only', CLOUDFLARE_ACCOUNT_ID: '0123456789abcdef0123456789abcdef', CLOUDFLARE_API_TOKEN: 'test-fallback-token' };
@@ -43,12 +44,10 @@ test('server sends fixed endpoint/alias/key, normalized four fields, and returns
   assert.deepEqual(body.response_format, { type: 'json_object' });
   assert.equal(JSON.parse(body.messages[1].content).productName, 'á');
   assert.doesNotMatch(JSON.stringify(body), /test-secret-only/);
-  assert.match(body.messages[0].content, /45–90/);
-  assert.match(body.messages[0].content, /115/);
-  assert.match(body.messages[0].content, /Không suy diễn đặc tính hoặc lợi ích/);
-  assert.match(body.messages[0].content, /bền đẹp/);
-  assert.match(body.messages[0].content, /Mở đầu caption 2 và 3 bằng một câu ngắn/);
-  assert.match(body.messages[0].content, /Không lặp toàn bộ danh sách đặc điểm/);
+  assert.equal(body.messages[0].content, systemPrompt);
+  assert.deepEqual(JSON.parse(body.messages[1].content).limits, {
+    captionChars: [[45, 90], [150, 260], [180, 280]], openingMax: 115, headlineMax: 40,
+  });
   assert.doesNotMatch(JSON.stringify(logs), /test-secret-only|Sổ tay|captions|messages/);
   assert.equal((logs[0] as { actualModel: string }).actualModel, 'test/model');
   assert.deepEqual((logs[0] as { usage: unknown }).usage, { prompt_tokens: 12, completion_tokens: 34, total_tokens: 46 });

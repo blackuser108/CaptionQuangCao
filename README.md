@@ -8,6 +8,8 @@ Luồng Groq mặc định dùng `CAPTION_PIPELINE=single` để tạo cả bộ
 
 Payload Single chỉ gồm dữ kiện đầu vào, mã tông đã chọn và mốc độ dài. Các gợi ý tông/chiến lược tự sinh được giữ cho pipeline nhiều bước để tránh chỉ dẫn sáng tác cạnh tranh với ranh giới dữ kiện trong Single.
 
+Prompt Single phân vai AIDA/PAS/BAB cho ba trọng tâm khác nhau, rà FAB/4C và chỉ dùng urgency/proof khi brief có căn cứ. Cách chọn góc và tự rà nằm trong cùng lượt sinh, chỉ trả JSON cuối. Emoji tùy ngữ cảnh, không có quota mới. Prompt này tách khỏi craft rules của Deep; không gửi ví dụ viết tay hoặc thêm lượt AI để chấm/sửa.
+
 `CAPTION_PIPELINE=deep` vẫn là lựa chọn cấu hình server, tối đa bốn lượt tính cả lỗi. Server chỉ chuyển nhà cung cấp khi còn đủ lượt cho các bước còn lại, kể cả polish nếu cần. Bộ kết quả thành công vẫn phải qua validator 3 caption, 3 headline và 5 hashtag. Chất lượng và quota cần kiểm riêng bằng yêu cầu thật có ngân sách.
 
 Xem tài liệu [Workers AI REST API](https://developers.cloudflare.com/workers-ai/get-started/rest-api/) để lấy Account ID và token có quyền Workers AI. Các ghi nhận về Gemini, Groq dự phòng và OpenRouter ở dưới mô tả những bản trước. [Hồ sơ Gemini/Groq ngày 04/11](AI_PROVIDER_MIGRATION.md).
