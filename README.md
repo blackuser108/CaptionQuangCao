@@ -4,7 +4,9 @@ Mô tả gửi AI được lọc theo một số mẫu mệnh lệnh trước kh
 
 **Cấu hình Groq và Cloudflare Workers AI trong source.** Đặt `AI_PROVIDER=groq` để gọi trực tiếp `openai/gpt-oss-120b`. Cloudflare dự phòng dùng `@cf/qwen/qwen3-30b-a3b-fp8` qua Workers AI REST API. Cấu hình hai khóa server `GROQ_API_KEY`, `CLOUDFLARE_API_TOKEN` và `CLOUDFLARE_ACCOUNT_ID` theo `.env.example`.
 
-Deep có tối đa bốn lượt, tính cả lỗi. Server chỉ chuyển nhà cung cấp khi đủ lượt cho bước đang lỗi, các lượt chấm còn lại và cả polish nếu cần. Với quy trình Deep hiện tại, một lỗi từ Groq làm thiếu ngân sách này. App dừng, báo lỗi và giữ bản nháp. Kết quả thành công vẫn qua validator 3 caption, 3 headline và 5 hashtag.
+Luồng Groq mặc định dùng `CAPTION_PIPELINE=single` để tạo cả bộ trong một lượt. Nếu Groq trả 429/500/502/503, server được chuyển một lần sang Cloudflare, tổng tối đa hai yêu cầu gồm lượt lỗi. Không chuyển sau lỗi mạng, timeout, auth, từ chối nội dung hoặc JSON/schema sai. Không gọi lại cùng provider, sửa JSON bằng lượt bổ sung hoặc dùng kết quả mẫu. Lỗi quota trả `RATE_LIMITED`, lỗi upstream trả `UPSTREAM_ERROR`; log JSON giữ quota và usage từng lượt.
+
+`CAPTION_PIPELINE=deep` vẫn là lựa chọn cấu hình server, tối đa bốn lượt tính cả lỗi. Server chỉ chuyển nhà cung cấp khi còn đủ lượt cho các bước còn lại, kể cả polish nếu cần. Bộ kết quả thành công vẫn phải qua validator 3 caption, 3 headline và 5 hashtag. Chất lượng và quota cần kiểm riêng bằng yêu cầu thật có ngân sách.
 
 Xem tài liệu [Workers AI REST API](https://developers.cloudflare.com/workers-ai/get-started/rest-api/) để lấy Account ID và token có quyền Workers AI. Các ghi nhận về Gemini, Groq dự phòng và OpenRouter ở dưới mô tả những bản trước. [Hồ sơ Gemini/Groq ngày 04/11](AI_PROVIDER_MIGRATION.md).
 Agent tự động Viết Caption Quảng cáo

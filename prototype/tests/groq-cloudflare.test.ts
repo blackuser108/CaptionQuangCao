@@ -79,8 +79,8 @@ test('Deep stops at an unavailable stage if reserving polish would exceed the ca
     for (const failedAt of [1, 2, 3, 4]) {
       const f = fixture((_c, n) => n === failedAt ? new Response('PRIVATE_BODY', { status }) : undefined, env, true);
       const r = await f.run(req());
-      assert.equal(r.status, 502);
-      assert.equal((await r.json()).error.code, 'AI_REQUEST_LIMIT');
+      assert.equal(r.status, status === 429 ? 429 : 502);
+      assert.equal((await r.json()).error.code, status === 429 ? 'RATE_LIMITED' : 'UPSTREAM_ERROR');
       assert.deepEqual(f.calls.map(c => c.url), Array(failedAt).fill(groqUrl));
       assert.deepEqual(f.logs[0].fallbackBudget, {
         stage: ['write', 'judge', 'judge-reverse', 'polish'][failedAt - 1], remaining: 4 - failedAt, required: 5 - failedAt,
@@ -88,9 +88,9 @@ test('Deep stops at an unavailable stage if reserving polish would exceed the ca
       assert.doesNotMatch(JSON.stringify(f.logs), /PRIVATE_BODY|test-.*-secret/);
     }
   }
-  for (const mode of ['single', 'smart']) {
+  for (const mode of ['smart']) {
     const f = fixture(() => new Response('', { status: 429 }), { ...env, CAPTION_PIPELINE: mode });
-    assert.equal((await (await f.run(req())).json()).error.code, 'AI_REQUEST_LIMIT');
+    assert.equal((await (await f.run(req())).json()).error.code, 'RATE_LIMITED');
     assert.deepEqual(f.calls.map(c => c.url), [groqUrl]);
   }
 });
@@ -276,7 +276,7 @@ test('Groq attempt metadata retains bounded quota headers, response bytes and us
     'x-ratelimit-remaining-requests': '999999999999999999999',
     'x-unexpected': 'PRIVATE_BODY',
   } }) : undefined);
-  assert.equal((await f.run(req())).status, 502);
+  assert.equal((await f.run(req())).status, 429);
   const log = f.logs[0];
   assert.equal(log.attempts[0].responseBytes, Buffer.byteLength(JSON.stringify(completion(writerPool(), groqModel))));
   assert.equal(log.attempts[0].actualModel, groqModel);

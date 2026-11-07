@@ -66,7 +66,7 @@ function groqQuota(headers: Headers) {
   return Object.keys(quota).length ? quota : undefined;
 }
 
-export function createGenerateHandler({ env = process.env, fetchUpstream = fetch, timeoutMs = generationTimeoutMs, log = console.info }: Options = {}) {
+export function createGenerateHandler({ env = process.env, fetchUpstream = fetch, timeoutMs = generationTimeoutMs, log = data => console.info(JSON.stringify(data)) }: Options = {}) {
   // shortcut: guard chỉ dùng cho một process local; cần cơ chế dùng chung trước khi triển khai nhiều instance.
   let inFlight = false;
   return async function generate(request: Request) {
@@ -103,7 +103,7 @@ export function createGenerateHandler({ env = process.env, fetchUpstream = fetch
       ? { key: localKey, model: 'auto', url: 'http://127.0.0.1:31415/v1/chat/completions' }
       : undefined;
     const primary = direct ?? deepseek ?? local;
-    const mode = env.CAPTION_PIPELINE ?? 'deep';
+    const mode = env.CAPTION_PIPELINE ?? (direct ? 'single' : 'deep');
     if (!primary || !['single', 'smart', 'deep'].includes(mode)) return failure('AI_NOT_CONFIGURED');
     if (inFlight) return failure('RATE_LIMITED');
     inFlight = true;
@@ -113,7 +113,8 @@ export function createGenerateHandler({ env = process.env, fetchUpstream = fetch
     if (request.signal.aborted) abort();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     let calls = 0;
-    const maxCalls = mode === 'single' ? 1 : mode === 'smart' ? 2 : 4;
+    // Single generates the complete set once, with at most one availability fallback for Groq.
+    const maxCalls = mode === 'single' ? (direct ? 2 : 1) : mode === 'smart' ? 2 : 4;
     const attempts: (ProviderOutputMetadata & {
       stage: StageName | 'single'; provider: string; requestedModel: string; upstreamStatus?: number;
       retryAfterSeconds?: number; quota?: ReturnType<typeof groqQuota>; durationMs: number; responseBytes?: number;
@@ -168,7 +169,7 @@ export function createGenerateHandler({ env = process.env, fetchUpstream = fetch
               const remaining = maxCalls - calls;
               if (remaining < required) {
                 fallbackBudget = { stage: attempt.stage, remaining, required };
-                throw new Error('AI_REQUEST_LIMIT');
+                throw new Error(upstream.status === 429 ? 'RATE_LIMITED' : 'UPSTREAM_ERROR');
               }
               activeProvider = 'cloudflare';
               activeTarget = direct.fallback;

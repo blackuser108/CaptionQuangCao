@@ -214,13 +214,13 @@ test('Groq rejects invalid input and injected provider controls before upstream'
   assert.equal(calls, 0);
 });
 
-test('Single mode maps Groq HTTP and network errors within one attempt', async () => {
+test('Single mode maps final provider errors within two availability attempts', async () => {
   for (const status of [400, 401, 402, 403, 404, 429, 500, 503, 302]) {
     let calls = 0;
     const logs: { upstreamStatus?: number }[] = [];
     const run = handler((async () => { calls++; return new Response('UPSTREAM_PRIVATE test-secret-only', { status }); }) as typeof fetch, { env: groqEnv, log: (data: { upstreamStatus?: number }) => logs.push(data) });
-    await failure(await run(request()), 502, [429, 500, 503].includes(status) ? 'AI_REQUEST_LIMIT' : 'UPSTREAM_ERROR');
-    assert.equal(calls, 1);
+    await failure(await run(request()), status === 429 ? 429 : 502, status === 429 ? 'RATE_LIMITED' : 'UPSTREAM_ERROR');
+    assert.equal(calls, [429, 500, 503].includes(status) ? 2 : 1);
     assert.equal(logs[0].upstreamStatus, status);
     assert.doesNotMatch(JSON.stringify(logs), /UPSTREAM_PRIVATE|test-secret-only/);
   }
