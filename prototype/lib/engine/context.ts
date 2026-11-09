@@ -1,6 +1,7 @@
 import { count, type Input } from '../content.ts';
-import { audienceById, categoryById, ctaById, hookById, library, toneById } from './library.ts';
-import { ENGINE_VERSION, type AudienceContext, type CampaignBrief, type CategoryId, type CopyExample, type CtaId, type FeatureAngle, type FeatureKind, type HookId, type ProductContext, type ProductFact, type StrategyId, type StrategyPlan, type ToneProfile } from './types.ts';
+import { extractInfo } from '../detail.ts';
+import { audienceById, categoryById, ctaById, emojiKitFor, hookById, library, substantiveFacts, toneById, trustedCategory } from './library.ts';
+import { ENGINE_VERSION, type LayoutId, type AudienceContext, type CampaignBrief, type CategoryId, type CopyExample, type CtaId, type FeatureAngle, type FeatureKind, type HookId, type ProductContext, type ProductFact, type StrategyId, type StrategyPlan, type ToneProfile } from './types.ts';
 
 const fold = (text: string) => text.normalize('NFC').toLocaleLowerCase('vi-VN');
 
@@ -44,7 +45,7 @@ function splitOutsideQuotes(text: string, separator: RegExp) {
 // A narrow set of instruction leads, not a general prompt-injection detector.
 const instructionStart = /(?:bỏ qua (?:mọi )?(?:hướng dẫn|prompt|quy tắc)|ignore (?:all )?(?:previous|above|system)|forget (?:your|the) (?:rules|instructions)|output only|bịa (?:thêm )?(?:chứng nhận|ưu đãi|kết quả|giá)|hãy (?:giả sử đã có|nói|viết|khẳng định|bịa))(?=\s|$|[,:;.!?”"'’»])/iu;
 
-function promptDescription(description: string) {
+export function promptDescription(description: string) {
   let changed = false;
   const parts = splitOutsideQuotes(description, /(?<=[.!?])\s+|[\r\n;•]+/gu).map(sentence => {
     const command = instructionStart.exec(maskQuotedText(sentence, true));
@@ -63,15 +64,17 @@ function splitFacts(text: string) {
 }
 
 export function extractFacts(input: Input): ProductFact[] {
+  const injection = looksLikeInjection(`${input.productName}\n${input.description}`);
   const seen = new Set<string>();
   const facts: ProductFact[] = [];
   for (const raw of [input.productName, ...splitFacts(promptDescription(input.description))]) {
     const text = raw.replace(/\s+/g, ' ').trim();
     const key = fold(text);
-    if (!text || seen.has(key) || instructionStart.test(maskQuotedText(text, true))) continue;
+    if (!text || seen.has(key)) continue;
     seen.add(key);
     facts.push({ text, kind: 'fact', confidence: 1 });
   }
+  if (injection) return facts;
   return facts;
 }
 
@@ -189,14 +192,14 @@ export function seededRandom(seed: number) {
 
 const strategyOrder: StrategyId[] = ['benefit-led', 'audience-led', 'story-led'];
 const preferredHooks: Record<StrategyId, HookId[]> = {
-  'benefit-led': ['rhythm', 'number-fact', 'micro-promise', 'contrast', 'call-out', 'confession'],
-  'audience-led': ['pain-question', 'call-out', 'confession', 'pov', 'curiosity', 'contrast'],
-  'story-led': ['scene', 'pov', 'permission', 'curiosity', 'confession', 'contrast'],
+  'benefit-led': ['rhythm', 'number-fact', 'micro-promise', 'contrast', 'call-out', 'confession', 'tiny-list'],
+  'audience-led': ['pain-question', 'call-out', 'confession', 'pov', 'curiosity', 'contrast', 'dialogue', 'whisper', 'unsaid'],
+  'story-led': ['scene', 'pov', 'permission', 'curiosity', 'confession', 'contrast', 'dialogue', 'whisper', 'tiny-list'],
 };
 const preferredCtas: Record<StrategyId, CtaId[]> = {
-  'benefit-led': ['see', 'tag', 'save', 'choose'],
-  'audience-led': ['inbox', 'comment', 'see', 'save'],
-  'story-led': ['comment', 'save', 'tag', 'choose', 'inbox'],
+  'benefit-led': ['see', 'tag', 'save', 'choose', 'react'],
+  'audience-led': ['inbox', 'comment', 'see', 'save', 'react'],
+  'story-led': ['comment', 'save', 'tag', 'choose', 'inbox', 'react'],
 };
 
 function pickDistinct<T extends string>(candidates: T[], used: Set<T>, random: () => number): T {
@@ -207,10 +210,17 @@ function pickDistinct<T extends string>(candidates: T[], used: Set<T>, random: (
   return choice;
 }
 
-function planStrategies(product: ProductContext, audience: AudienceContext, tone: ToneProfile, random: () => number): StrategyPlan[] {
+function planStrategies(product: ProductContext, audience: AudienceContext, tone: ToneProfile, random: () => number, richFacts = false, signals = { offer: false, schedule: false }): StrategyPlan[] {
   const hasDigit = product.facts.some(fact => /\d/.test(fact.text));
   const allowedHooks = tone.allowedHooks.filter(id => !hookById[id].needsDigitFact || hasDigit);
-  const usedHooks = new Set<HookId>(), usedCtas = new Set<CtaId>();
+  const usedHooks = new Set<HookId>(), usedCtas = new Set<CtaId>(), usedLayouts = new Set<LayoutId>(), usedScenes = new Set<string>();
+  // Bố cục theo từng bài; danh sách emoji chỉ có ở TỐI ĐA một bài và chỉ khi có từ 2 dữ kiện thật.
+  const layoutPool: Record<StrategyId, LayoutId[]> = {
+    'benefit-led': ['one-liner', 'short-lines'],
+    'audience-led': ['qa', 'prose-inline', ...(richFacts ? ['list' as const] : [])],
+    'story-led': [...(tone.id === 'formal' ? [] : ['dialogue' as const]), 'prose-inline', ...(richFacts ? ['list' as const] : [])],
+  };
+  const sceneSeeds = [...(library.sceneSeeds[product.category] ?? []), ...library.sceneSeeds.generic];
   const angles: Record<StrategyId, { goal: string; angle: string }> = {
     'benefit-led': { goal: 'Ngắn, sắc, đứng một mình được: MỘT ý duy nhất khiến người đang lướt dừng lại.', angle: product.benefits[0]?.text || audience.priorityBenefits[0] || 'Một đặc điểm thật dịch thành điều người đọc làm được.' },
     'audience-led': { goal: 'Khiến người đọc thấy "đúng mình" rồi dẫn tự nhiên tới sản phẩm (PAS).', angle: audience.painPoints[0] || audience.needs[0] },
@@ -218,11 +228,20 @@ function planStrategies(product: ProductContext, audience: AudienceContext, tone
   };
   return strategyOrder.map((id, index) => {
     const hookPool = preferredHooks[id].filter(item => allowedHooks.includes(item));
-    const hook = hookById[pickDistinct(hookPool.length ? hookPool : allowedHooks, usedHooks, random)];
+    // Shop có giá/ưu đãi thật thì bài ngắn mở bằng chính nó; có lịch cố định thì bài PAS mở bằng lời hẹn đều đặn.
+    const forcedHook: HookId | undefined = id === 'benefit-led' && signals.offer ? 'price-anchor' : id === 'audience-led' && signals.schedule ? 'ritual' : undefined;
+    if (forcedHook) usedHooks.add(forcedHook);
+    const hook = hookById[forcedHook ?? pickDistinct(hookPool.length ? hookPool : allowedHooks, usedHooks, random)];
     const ctaPool = preferredCtas[id].filter(item => tone.allowedCtas.includes(item));
     const cta = ctaById[pickDistinct(ctaPool.length ? ctaPool : tone.allowedCtas, usedCtas, random)];
+    const layoutChoices = layoutPool[id].filter(item => !usedLayouts.has(item) && !(item === 'list' && usedLayouts.has('list')));
+    const layoutId = hook.id === 'dialogue' && layoutPool[id].includes('dialogue') ? 'dialogue' : pickDistinct(layoutChoices.length ? layoutChoices : layoutPool[id], usedLayouts, random);
+    usedLayouts.add(layoutId);
+    const layout = library.layouts.find(item => item.id === layoutId)!;
+    const scene = id === 'benefit-led' ? '' : pickDistinct(sceneSeeds, usedScenes, random);
     return {
-      id, goal: angles[id].goal, angle: angles[id].angle, length: library.platform.captionTargets[index],
+      layout: { id: layoutId, label: layout.label, how: layout.how }, scene,
+      id, goal: angles[id].goal, angle: angles[id].angle, length: (richFacts ? library.platform.captionTargets : library.platform.thinCaptionTargets)[index],
       framework: library.frameworks[id],
       hook: { id: hook.id, label: hook.label, how: hook.how },
       cta: { id: cta.id, label: cta.label, how: id === 'benefit-led' ? `Tùy chọn, rất ngắn nếu còn chỗ. ${cta.how}` : cta.how },
@@ -254,6 +273,8 @@ export function buildBrief(input: Input, seed = 0): CampaignBrief {
   const primaryBenefit = product.benefits[0]?.text || audience.priorityBenefits[0] || 'Nêu đúng đặc điểm đã có và việc dùng được xác nhận.';
   const category = categoryById[product.category];
   const verifiedFacts = product.facts.map(fact => fact.text);
+  const richFacts = substantiveFacts(verifiedFacts, input.productName).length >= 2;
+  const shopInfo = extractInfo(promptDescription(input.description));
   const claimsToAvoid = [
     ...category.forbiddenClaims, ...category.unsupportedAssumptions, ...audience.avoidPhrases, ...tone.avoid,
     'giá', 'ưu đãi', 'chứng nhận', 'hiệu quả chưa nêu',
@@ -275,18 +296,71 @@ export function buildBrief(input: Input, seed = 0): CampaignBrief {
     missing: product.missing,
     claimRisk: category.risk,
     featureAngles: buildFeatureAngles(product),
-    strategies: planStrategies(product, audience, tone, random),
+    strategies: planStrategies(product, audience, tone, random, richFacts, { offer: shopInfo.prices.length + shopInfo.offers.length > 0, schedule: shopInfo.schedule.length > 0 }),
     examples: pickExamples(product, tone, audience, random),
   };
 }
 
 export function briefForPrompt(brief: CampaignBrief, input: Input) {
   return {
-    productName: input.productName, description: promptDescription(input.description),
-    audienceInput: input.audience, toneInput: input.tone,
+    productName: input.productName,
+    description: promptDescription(input.description),
+    audienceInput: input.audience,
+    toneInput: input.tone,
     facts: brief.verifiedFacts,
-    tone: { id: brief.tone.id, voice: brief.tone.voice, devices: brief.tone.devices, emojiPolicy: brief.tone.emojiPolicy },
-    strategies: brief.strategies.map(({ id, length, hook }) => ({ id, length, hook: hook.id })),
-    limits: { captionChars: library.platform.captionTargets, openingMax: 115, headlineMax: 40 },
+    engineVersion: brief.version,
+    product: {
+      name: brief.product.name,
+      category: brief.product.categoryConfidence >= 0.45 ? brief.product.category : 'generic',
+      categoryConfidence: brief.product.categoryConfidence,
+      claimRisk: brief.claimRisk,
+      verifiedFacts: brief.verifiedFacts,
+      factDensity: substantiveFacts(brief.verifiedFacts, input.productName).length >= 2 ? 'ok' : 'thin',
+      // Thông tin thật của shop theo từng dòng (giá, ưu đãi, lịch, địa chỉ, liên hệ, điều kiện, độ khan hiếm): chép đúng nguyên văn.
+      info: Object.fromEntries(Object.entries(extractInfo(promptDescription(input.description))).filter(([, list]) => list.length)),
+      features: brief.product.features,
+      featureAngles: brief.featureAngles,
+      inferredBenefits: brief.product.benefits.filter(item => item.confidence >= 0.6).map(item => item.text),
+      useCases: brief.product.useCases,
+      imagery: categoryById[brief.product.category].imagery,
+      missing: brief.missing,
+      unknown: ['giá', 'ưu đãi', 'chứng nhận', 'hiệu quả chưa nêu', ...brief.product.missing],
+    },
+    audience: {
+      label: brief.audience.label,
+      inferred: brief.audience.inferred,
+      confidence: brief.audience.confidence,
+      usageContext: brief.audience.usageContext,
+      painPoints: brief.audience.painPoints,
+      motivations: brief.audience.motivations,
+      languagePatterns: brief.audience.languagePatterns,
+      avoidPhrases: brief.audience.avoidPhrases,
+    },
+    tone: {
+      id: brief.tone.id,
+      voice: brief.tone.voice,
+      devices: brief.tone.devices,
+      rhythm: brief.tone.sentenceRhythm,
+      vocabulary: brief.tone.vocabulary,
+      intimacy: brief.tone.intimacy,
+      benefitStyle: brief.tone.benefitStyle,
+      emojiPolicy: brief.tone.emojiPolicy,
+      ctaStyle: brief.tone.ctaStyle,
+      avoid: brief.tone.avoid,
+    },
+    campaign: {
+      objective: brief.objective,
+      mainMessage: brief.mainMessage,
+      primaryBenefit: brief.primaryBenefit,
+      emotionalAngle: brief.emotionalAngle,
+      persuasion: brief.persuasion,
+      ctaIntent: brief.ctaIntent,
+      platform: brief.platform,
+      claimsToAvoid: brief.claimsToAvoid.slice(0, 16),
+    },
+    emojiKit: emojiKitFor(trustedCategory(brief.product.category, brief.product.categoryConfidence), brief.tone.id),
+    strategies: brief.strategies,
+    examples: brief.examples.map(example => ({ strategy: example.strategy, product: example.product, facts: example.facts, caption: example.caption, why: example.why })),
+    limits: { captionChars: library.platform.captionTargets, openingMax: library.platform.openingMax, openingIdeal: library.platform.openingIdeal, headlineMax: library.platform.headlineMax, descriptionChars: count(input.description) },
   };
 }

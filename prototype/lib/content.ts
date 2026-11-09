@@ -12,8 +12,9 @@ export const fields = {
 export const normalize = (text: string) => text.normalize('NFC').replace(/\r\n?/g, '\n');
 export const count = (text: string) => Array.from(normalize(text)).length;
 export const openingCount = (text: string) => count(normalize(text).split('\n')[0]);
+const stripLinks = (text: string) => text.replace(/\[([^\]]*)\]\(https?:[^)]*\)/g, '$1').replace(/https?:\/\/\S+/g, '');
 export const cleanInput = (input: Input): Input => Object.fromEntries(
-  Object.entries(input).map(([key, value]) => [key, normalize(value).trim()]),
+  Object.entries(input).map(([key, value]) => { const text = (key === 'description' ? stripLinks(normalize(value)) : normalize(value)).trim(); return [key, key === 'tone' && text === 'friendly' ? 'youthful' : text]; }),
 ) as Input;
 
 export function validOutput(value: unknown): value is Output {

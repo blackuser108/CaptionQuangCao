@@ -76,7 +76,11 @@ test('H7 keeps the exact pre-order deadline and the label Lọc without adding a
 test('Single and Deep send sanitized product data through the existing Groq route and keep 3/3/5', async () => {
   for (const mode of ['single', 'deep']) {
     const calls: { url: string; body: any }[] = [];
-    const sample = getSample(0);
+    const sample = {
+      captions: ['Túi đựng ô Mây bằng vải, có khóa kéo.', 'Mang ô gấp đi tàu? Bạn có thể dùng túi Mây để đựng ô.', 'Cất ô gấp vào túi vải có khóa kéo. Bạn thường mang ô khi nào?'],
+      headlines: ['Túi đựng ô Mây', 'Túi vải có khóa kéo', 'Đựng ô gấp đi tàu'],
+      hashtags: ['#TuiDungOMay', '#TuiVai', '#KhoaKeo', '#OGap', '#GhepOTruocCua'],
+    };
     const handler = createGenerateHandler({
       env: {
         AI_PROVIDER: 'groq', CAPTION_PIPELINE: mode, GROQ_API_KEY: 'mock-groq-secret',

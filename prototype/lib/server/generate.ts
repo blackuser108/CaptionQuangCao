@@ -1,20 +1,22 @@
-import { cleanInput, generationTimeoutMs, normalize, validOutput, validate } from '../content.ts';
+import { cleanInput, generationTimeoutMs, validate } from '../content.ts';
 import { buildBrief } from '../engine/context.ts';
-import { buildMessages } from '../engine/prompt.ts';
+import { runSingle, normalizeGeneratedOutput } from './single.ts';
 import { scoreOutput } from '../engine/quality.ts';
+import { autofix } from '../engine/autofix.ts';
 import { runPipeline, type StageName } from '../engine/pipeline.ts';
 import { InvalidAIOutput } from '../engine/output-error.ts';
 import { responseFormat } from '../engine/schemas.ts';
 import { deepseekConfig } from './deepseek.ts';
 import { groqConfig } from './groq.ts';
 import { decodeProviderOutput, type ProviderOutputMetadata } from './provider-output.ts';
-import type { Input } from '../content.ts';
+import type { Input, Output } from '../content.ts';
 
 type Options = { env?: Record<string, string | undefined>; fetchUpstream?: typeof fetch; timeoutMs?: number; log?: (data: unknown) => void };
 const errors = {
   INVALID_INPUT: [422, 'Thông tin chưa hợp lệ. Kiểm tra đủ bốn trường, tông giọng và độ dài rồi thử lại.'],
   RATE_LIMITED: [429, 'Dịch vụ đang giới hạn yêu cầu hoặc đang tạo một bộ khác. Hãy chờ rồi chủ động thử lại.'],
   INVALID_AI_OUTPUT: [502, 'AI trả nội dung sai cấu trúc hoặc vượt giới hạn xử lý. Bản nháp cũ được giữ; bạn có thể thử lại.'],
+  AI_UNGROUNDED_OUTPUT: [502, 'AI chưa giữ đúng dữ kiện sản phẩm. Form và bản nháp cũ được giữ. Bạn có thể thử lại.'],
   UPSTREAM_ERROR: [502, 'Dịch vụ AI trả lỗi. Bản nháp cũ được giữ; hãy thử lại sau.'],
   AI_NOT_CONFIGURED: [503, 'Kết nối AI chưa được cấu hình đúng. Kiểm tra cấu hình phía máy chủ.'],
   AI_UNAVAILABLE: [503, 'Chưa kết nối được dịch vụ AI. Kiểm tra kết nối phía máy chủ rồi thử lại.'],
@@ -104,7 +106,7 @@ export function createGenerateHandler({ env = process.env, fetchUpstream = fetch
       : undefined;
     const primary = direct ?? deepseek ?? local;
     const mode = env.CAPTION_PIPELINE ?? (direct ? 'single' : 'deep');
-    if (!primary || !['single', 'smart', 'deep'].includes(mode)) return failure('AI_NOT_CONFIGURED');
+    if (!primary || !['single', 'smart', 'deep'].includes(mode) || (direct && env.CAPTION_JUDGE_PROVIDER && !['groq', 'cloudflare'].includes(env.CAPTION_JUDGE_PROVIDER))) return failure('AI_NOT_CONFIGURED');
     if (inFlight) return failure('RATE_LIMITED');
     inFlight = true;
     const controller = new AbortController(), started = Date.now();
@@ -114,7 +116,7 @@ export function createGenerateHandler({ env = process.env, fetchUpstream = fetch
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     let calls = 0;
     // Single generates the complete set once, with at most one availability fallback for Groq.
-    const maxCalls = mode === 'single' ? (direct ? 2 : 1) : mode === 'smart' ? 2 : 4;
+    const maxCalls = mode === 'single' ? (direct ? 2 : 1) : mode === 'smart' ? (direct ? 3 : 2) : 4;
     const attempts: (ProviderOutputMetadata & {
       stage: StageName | 'single'; provider: string; requestedModel: string; upstreamStatus?: number;
       retryAfterSeconds?: number; quota?: ReturnType<typeof groqQuota>; durationMs: number; responseBytes?: number;
@@ -125,7 +127,6 @@ export function createGenerateHandler({ env = process.env, fetchUpstream = fetch
     let status = 503, upstreamStatus: number | undefined, actualModel: string | undefined, usage: Record<string, number> | undefined;
     try {
       controller.signal.throwIfAborted();
-      const brief = buildBrief(input);
       let activeProvider = provider;
       let activeTarget = primary;
       const keys = direct ? [primary.key, direct.fallback.key] : [primary.key];
@@ -135,10 +136,12 @@ export function createGenerateHandler({ env = process.env, fetchUpstream = fetch
         controller.signal.throwIfAborted();
         // Count dispatched attempts, including HTTP failures. Never dispatch a fifth inference.
         if (calls >= maxCalls) throw new Error('AI_REQUEST_LIMIT');
-        const cloudflare = activeProvider === 'cloudflare';
-        const target = activeTarget;
+        const separateJudge = direct && env.CAPTION_JUDGE_PROVIDER === 'cloudflare' && (stage === 'judge' || stage === 'judge-reverse');
+        const selectedProvider = separateJudge ? 'cloudflare' : activeProvider;
+        const cloudflare = selectedProvider === 'cloudflare';
+        const target = separateJudge ? direct.fallback : activeTarget;
         const requestedModel = target.model;
-        const attempt: typeof attempts[number] = {stage: stage ?? 'single', provider: activeProvider, requestedModel, durationMs: 0};
+        const attempt: typeof attempts[number] = {stage: stage ?? 'single', provider: selectedProvider, requestedModel, durationMs: 0};
         attempts.push(attempt); calls++;
         const attemptStarted = Date.now();
         try {
@@ -148,23 +151,24 @@ export function createGenerateHandler({ env = process.env, fetchUpstream = fetch
             body: JSON.stringify({
               ...(!cloudflare ? { model: requestedModel } : {}),
               stream: false,
-              response_format: responseFormat(activeProvider, stage, judgeIds),
+              response_format: responseFormat(selectedProvider, stage, judgeIds),
               ...(!local ? { max_tokens: stage === 'write' ? 4096 : 2048 } : {}),
-              ...(activeProvider === 'groq' ? { reasoning_effort: 'low', include_reasoning: false } : {}),
-              ...(activeProvider === 'groq' && mode === 'single' ? { temperature: 0.2 } : {}),
+              ...(selectedProvider === 'groq' ? { reasoning_effort: 'low', include_reasoning: false } : {}),
+              ...(selectedProvider === 'groq' && mode === 'single' ? { temperature: 0.2 } : {}),
               ...(deepseek ? { thinking: { type: 'disabled' } } : {}),
               messages,
             }),
           });
           upstreamStatus = upstream.status;
           attempt.upstreamStatus = upstream.status;
-          if (activeProvider === 'groq') attempt.quota = groqQuota(upstream.headers);
+          if (selectedProvider === 'groq') attempt.quota = groqQuota(upstream.headers);
           const retryAfter = upstream.headers.get('retry-after');
           if (retryAfter && /^\d{1,5}$/.test(retryAfter) && Number(retryAfter) <= 86400) attempt.retryAfterSeconds = Number(retryAfter);
           if (!upstream.ok) {
             void upstream.body?.cancel().catch(() => {});
-            // Only known availability HTTP statuses may change provider. Never network/timeout/abort/JSON errors.
-            if (activeProvider === 'groq' && direct && [429, 500, 502, 503].includes(upstream.status)) {
+            // Smart may also exceed Groq's request capacity with the original V3 brief.
+            const unavailable = [429, 500, 502, 503].includes(upstream.status) || (mode === 'smart' && upstream.status === 413);
+            if (selectedProvider === 'groq' && direct && unavailable) {
               controller.signal.throwIfAborted();
               const required = mode === 'deep' ? deepFallbackCalls[stage ?? 'single'] : mode === 'smart' && stage === 'write' ? 2 : 1;
               const remaining = maxCalls - calls;
@@ -203,27 +207,24 @@ export function createGenerateHandler({ env = process.env, fetchUpstream = fetch
           }
         }
       };
-      let raw: unknown;
+      let output: Output;
       try {
-        if (mode === 'single') raw = await chat(buildMessages(input, brief));
-        else raw = (await runPipeline({input,brief,mode:mode as 'smart'|'deep',chat,sequentialJudges:!!direct})).output;
+        if (mode === 'single') output = await runSingle(input, chat, containsKey);
+        else {
+          const seed = Math.floor(Math.random() * 2 ** 31);
+          const brief = buildBrief(input, seed);
+          const result = await runPipeline({input,brief,mode:mode as 'smart'|'deep',chat,seed,sequentialJudges:!!direct,compactWriter:!!direct});
+          const selected = normalizeGeneratedOutput(result.output, containsKey);
+          output = normalizeGeneratedOutput(autofix(selected, input, brief).output, containsKey);
+          const report = scoreOutput(output,input,brief);
+          // Heuristic diagnostics are not a factuality guarantee; never log text or details.
+          diagnostics = {score:report.score,issues:report.issues.map(issue=>issue.code),calls};
+        }
       } catch (error) {
         if (error instanceof InvalidAIOutput) outputError = { reason: error.reason, stage: error.stage };
-        const code = controller.signal.aborted ? 'AI_TIMEOUT' : error instanceof Error && Object.hasOwn(errors,error.message) ? error.message as ErrorCode : 'AI_UNAVAILABLE';
+        const code = controller.signal.aborted ? 'AI_TIMEOUT' : error instanceof InvalidAIOutput && error.reason === 'FINAL_GROUNDING' ? 'AI_UNGROUNDED_OUTPUT' : error instanceof Error && Object.hasOwn(errors,error.message) ? error.message as ErrorCode : 'AI_UNAVAILABLE';
         status = errors[code][0]; return failure(code);
       }
-      if (!raw || typeof raw !== 'object' || Array.isArray(raw) || Object.keys(raw).length !== 3) {
-        outputError = { reason: 'FINAL_OUTPUT', stage: 'final' };
-        status = 502; return failure('INVALID_AI_OUTPUT');
-      }
-      const output = Object.fromEntries(Object.entries(raw).map(([name, values]) => [name, Array.isArray(values) ? values.map(value => typeof value === 'string' ? normalize(value) : value) : values]));
-      if (!validOutput(output) || Object.values(output).flat().some(text => containsKey(text))) {
-        outputError = { reason: 'FINAL_OUTPUT', stage: 'final' };
-        status = 502; return failure('INVALID_AI_OUTPUT');
-      }
-      const report = scoreOutput(output,input,brief);
-      // Heuristic diagnostics are not a factuality guarantee; never log text or details.
-      diagnostics = {score:report.score,issues:report.issues.map(issue=>issue.code),calls};
       status = 200;
       return Response.json(output, {headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
     } catch {

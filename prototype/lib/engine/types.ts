@@ -18,8 +18,9 @@ export type ToneId = 'youthful' | 'formal' | 'humorous';
 export type ClaimRisk = 'low' | 'medium' | 'high';
 export type HookId =
   | 'pain-question' | 'scene' | 'contrast' | 'call-out' | 'number-fact' | 'confession'
-  | 'curiosity' | 'pov' | 'micro-promise' | 'permission' | 'rhythm';
-export type CtaId = 'save' | 'tag' | 'comment' | 'inbox' | 'see' | 'choose';
+  | 'curiosity' | 'pov' | 'micro-promise' | 'permission' | 'rhythm'
+  | 'dialogue' | 'whisper' | 'tiny-list' | 'unsaid' | 'price-anchor' | 'ritual';
+export type CtaId = 'save' | 'tag' | 'comment' | 'inbox' | 'see' | 'choose' | 'react';
 
 export type HookType = { id: HookId; label: string; how: string; tones: ToneId[]; needsDigitFact?: boolean };
 export type CtaType = { id: CtaId; label: string; how: string; tones: ToneId[] };
@@ -119,6 +120,8 @@ export type AudienceContext = {
   priorityBenefits: string[];
 };
 
+export type LayoutId = 'one-liner' | 'short-lines' | 'qa' | 'prose-inline' | 'dialogue' | 'list';
+
 export type StrategyPlan = {
   id: StrategyId;
   goal: string;
@@ -127,6 +130,10 @@ export type StrategyPlan = {
   framework: string;
   hook: { id: HookId; label: string; how: string };
   cta: { id: CtaId; label: string; how: string };
+  /** Bố cục được giao: đa dạng bằng cách giao việc, không trông chờ model tự khác. Chỉ một caption được dùng danh sách. */
+  layout: { id: LayoutId; label: string; how: string };
+  /** Bối cảnh gợi ý cho caption có cảnh (audience-led, story-led); rỗng ở benefit-led. */
+  scene: string;
 };
 
 export type CampaignBrief = {

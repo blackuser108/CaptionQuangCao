@@ -46,7 +46,7 @@ function eligibleCandidates(pool: Pool, input: Input, brief: CampaignBrief): { e
   const eligible = pool.slots.map((list, slot) => {
     const scored = list.map((candidate, poolIndex) => ({ text: candidate.text, slot, poolIndex, ...scoreCandidate(candidate.text, slot, input, brief) }));
     generated += scored.length;
-    const ok = scored.filter(item => item.text.trim() && Array.from(item.text).length <= 4000).map(item => ({ text: item.text, slot, det: item.hard ? item.score * 0.35 : item.score, poolIndex: item.poolIndex }));
+    const ok = scored.filter(item => !item.hard).map(item => ({ text: item.text, slot, det: item.score, poolIndex: item.poolIndex }));
     passed += ok.length;
     return ok;
   });
@@ -94,6 +94,7 @@ export async function runPipeline(args: {
   canRun?: (stage: StageName) => boolean; now?: () => number;
   /** Host có fallback phải chờ cả parser của judge trước khi bắt đầu lượt chấm tiếp theo. */
   sequentialJudges?: boolean;
+  compactWriter?: boolean;
 }): Promise<{ output?: Output; trace: PipelineTrace }> {
   const { input, brief, mode, chat, canRun = () => true, now = Date.now } = args;
   const random = seededRandom((args.seed ?? 0) ^ 0x9e3779b9);
@@ -107,7 +108,7 @@ export async function runPipeline(args: {
   };
 
   // 1) WRITER: kiểm pool trước khi dùng lượt chấm.
-  const pool = parsePool(await run('write', buildWriterMessages(input, brief)));
+  const pool = parsePool(await run('write', buildWriterMessages(input, brief, undefined, args.seed ?? 0, args.compactWriter)));
   if (!pool) throw new InvalidAIOutput('POOL_CANDIDATES', 'write');
   const { eligible, generated, passed } = eligibleCandidates(pool, input, brief);
   trace.pool = { generated, eligible: passed };
@@ -157,14 +158,15 @@ export async function runPipeline(args: {
     return { quality: avg(r => r.quality), faithful: avg(r => r.faithful), fix: fixes[0] ?? '' };
   };
   const ranked: (Ranked & { candidate: Eligible; fix: string })[][] = eligible.map((list, slot) => {
-    const rows = list.map((candidate, index) => {
+    const rows = list.flatMap((candidate, index) => {
       const judge = judgeOf(slot, candidate);
-      const unfaithful = judge && judge.faithful < 2.5 ? 0.35 : 0; // judge nghi bịa dữ kiện → trừ nặng dù code chưa bắt được
-      const score = judge ? (1 - WEIGHT_JUDGE) * candidate.det + WEIGHT_JUDGE * judge.quality - unfaithful : candidate.det;
-      return { index, text: candidate.text, score, candidate, fix: judge?.fix ?? '' };
+      if (judge && judge.faithful < 3) return [];
+      const score = judge ? (1 - WEIGHT_JUDGE) * candidate.det + WEIGHT_JUDGE * judge.quality : candidate.det;
+      return [{ index, text: candidate.text, score, candidate, fix: judge?.fix ?? '' }];
     });
     return rows;
   });
+  if (ranked.some(list => !list.length)) throw new InvalidAIOutput('FINAL_GROUNDING', 'final');
   if (judged.length === 2) {
     // độ đồng thuận giữa hai thứ tự: tỉ lệ slot mà ứng viên thắng theo từng lượt chấm là một
     const winners = judged.map((result, round) => result.map((map, slot) => {
@@ -174,7 +176,7 @@ export async function runPipeline(args: {
     }));
     trace.judgeAgreement = Number((winners[0].filter((w, i) => w && w === winners[1][i]).length / 3).toFixed(2));
   }
-  let chosen = pickDistinct(ranked, 0.5).map((pick, slot) => ranked[slot].find(row => row.index === pick.index)!);
+  let chosen = pickDistinct(ranked, 0.5, input).map((pick, slot) => ranked[slot].find(row => row.index === pick.index)!);
   if (new Set(chosen.map(row => row.text)).size !== 3) {
     const distinct = distinctCaptionSet(ranked.map(list => [...list].sort((a, b) => b.score - a.score)));
     if (!distinct) throw new InvalidAIOutput('FINAL_OUTPUT', 'final');

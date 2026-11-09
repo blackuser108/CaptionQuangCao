@@ -6,8 +6,10 @@ const strings = { type: 'array', items: str };
 const object = (properties: Record<string, unknown>) => ({ type: 'object', additionalProperties: false, required: Object.keys(properties), properties });
 
 const writer = object({
+  plan: object({ moments: strings, images: strings }),
   slots: { type: 'array', items: object({
-    candidates: { type: 'array', items: object({ text: str }) },
+    strategy: str,
+    candidates: { type: 'array', items: object({ text: str, hook: str, cta: str, angle: str, p: { type: 'number' } }) },
   }) },
   headlines: strings,
   hashtags: { type: 'array', items: object({ tag: str, role: str }) },

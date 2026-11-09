@@ -44,7 +44,7 @@ test('judge completeness and numeric types, malformed polish fail without a repl
  const broken=fixture((body,n)=>{const p=JSON.parse(body.messages[1].content);if(n===1)return wrap(pool());if(p.slots)return wrap({slots:p.slots.map((g:any)=>({candidates:g.candidates.map((c:any)=>({id:c.id,stop:5,concrete:5,voice:5,natural:5,faithful:5,fix:'Giữ dữ kiện.'}))}))});return wrap({captions:[]});});assert.equal((await broken.run(req())).status,502);assert.equal(broken.calls.length,4);
 });
 test('quality overlap does not reject three structurally valid headlines',async()=>{
- const p=pool();p.headlines=output.captions.map(text=>text.split('\n')[0]);
+ const p=pool();p.headlines=['Ghi nhanh bài học','Một trang cho ý tưởng','Dòng kẻ giữ nhịp viết'];p.slots.forEach((slot,i)=>{slot.candidates.forEach(candidate=>{candidate.text=p.headlines[i]+'\n\n'+candidate.text;});});
  const f=fixture((body)=>{const payload=JSON.parse(body.messages[1].content);if(payload.slots)return wrap({slots:payload.slots.map((g:any)=>({candidates:g.candidates.map((c:any)=>({id:c.id,stop:5,concrete:5,voice:5,natural:5,faithful:5,fix:''}))}))});return wrap(p);});assert.equal((await f.run(req())).status,200);
 });
 test('timeout and incoming abort cancel pipeline, no late calls; response byte limit stays 32KiB',async()=>{
@@ -56,10 +56,10 @@ test('DeepSeek configuration and injected client controls fail before inference;
  const invalid=fixture();assert.equal((await invalid.run(req(undefined,{...sampleInput,model:'other'}))).status,422);assert.equal(invalid.calls.length,0);
  const single=fixture(()=>wrap(output),{env:{...env,CAPTION_PIPELINE:'single'}});assert.equal((await single.run(req())).status,200);assert.equal(single.calls.length,1);
 });
-test('brief exposes only supplied facts/audience, keeps main targets and heuristic scores are advisory',async()=>{
- const brief=buildBrief(sampleInput),payload=briefForPrompt(brief,sampleInput);assert.deepEqual(targets,[[45,90],[150,260],[180,280]]);assert.deepEqual(payload.limits.captionChars,targets);
- assert.doesNotMatch(JSON.stringify(payload),/inferredBenefits|painPoints|motivations|goldenExamples|examples/);assert.equal(payload.audienceInput,sampleInput.audience);
- assert.match(buildMessages(sampleInput,brief)[0].content,/Không suy diễn đặc tính hoặc lợi ích/);
+test('V3 brief preserves source writing guidance and the main form targets while scores remain advisory',async()=>{
+ const brief=buildBrief(sampleInput),payload=briefForPrompt(brief,sampleInput);assert.deepEqual(targets,[[45,90],[150,260],[180,280]]);assert.deepEqual(payload.limits.captionChars,[[70,150],[220,400],[340,600]]);
+ assert.ok(payload.product && payload.emojiKit && payload.examples);assert.equal(payload.audienceInput,sampleInput.audience);
+ assert.match(buildMessages(sampleInput,brief)[0].content,/SỰ THẬT/);
  const bad={...output,captions:['Được bảo hành 99 năm.',...output.captions.slice(1)]};assert.ok(scoreOutput(bad,sampleInput,brief).issues.some(x=>x.code==='unsupported-claim'));
- const single=fixture(()=>wrap(bad),{env:{...env,CAPTION_PIPELINE:'single'}});assert.equal((await single.run(req())).status,200);assert.ok(single.logs[0].diagnostics.issues.includes('unsupported-claim'));
+ const single=fixture(()=>wrap(bad),{env:{...env,CAPTION_PIPELINE:'single'}});assert.equal((await single.run(req())).status,200);assert.equal(single.logs[0].diagnostics,undefined);assert.equal(single.logs[0].calls,1);
 });

@@ -91,7 +91,7 @@ test('Deep stops at an unavailable stage if reserving polish would exceed the ca
   for (const mode of ['smart']) {
     const f = fixture(() => new Response('', { status: 429 }), { ...env, CAPTION_PIPELINE: mode });
     assert.equal((await (await f.run(req())).json()).error.code, 'RATE_LIMITED');
-    assert.deepEqual(f.calls.map(c => c.url), [groqUrl]);
+    assert.deepEqual(f.calls.map(c => c.url), [groqUrl, `https://api.cloudflare.com/client/v4/accounts/${account}/ai/run/${cfModel}`]);
   }
 });
 
@@ -193,7 +193,7 @@ test('Feasible distinct captions survive duplicate winners and duplicate polish 
     const { slots } = JSON.parse(call.body.messages[1].content);
     const scores = judgeRows(slots, 'Giữ dữ kiện.');
     const weaker = slots[0].candidates.findIndex((row: { text: string }) => row.text === b);
-    Object.assign(scores.slots[0].candidates[weaker], { stop: 1, concrete: 1, voice: 1, natural: 1, faithful: 1 });
+    Object.assign(scores.slots[0].candidates[weaker], { stop: 1, concrete: 1, voice: 1, natural: 1, faithful: 5 });
     return Response.json(completion(scores, groqModel));
   });
   const r = await f.run(req());
